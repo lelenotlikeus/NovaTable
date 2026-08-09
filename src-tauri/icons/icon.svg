@@ -1,0 +1,22 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="background" x1="72" y1="52" x2="438" y2="466" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#182529"/>
+      <stop offset="1" stop-color="#080C0F"/>
+    </linearGradient>
+    <linearGradient id="gem" x1="167" y1="130" x2="348" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A2FFE1"/>
+      <stop offset="0.52" stop-color="#62E6BE"/>
+      <stop offset="1" stop-color="#249D85"/>
+    </linearGradient>
+    <filter id="glow" x="91" y="73" width="330" height="366" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+  <rect x="20" y="20" width="472" height="472" rx="118" fill="url(#background)"/>
+  <rect x="31" y="31" width="450" height="450" rx="107" stroke="#63E6BE" stroke-opacity=".18" stroke-width="2"/>
+  <path d="M256 111L378 210L333 365L256 413L179 365L134 210L256 111Z" fill="#63E6BE" fill-opacity=".2" filter="url(#glow)"/>
+  <path d="M256 104L386 207L337 371L256 421L175 371L126 207L256 104Z" stroke="url(#gem)" stroke-width="17" stroke-linejoin="round"/>
+  <path d="M133 211L256 253L379 211M256 112V412M179 365L256 253L333 365" stroke="url(#gem)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="256" cy="253" r="18" fill="#B2FFE7"/>
+</svg>

@@ -1,0 +1,23 @@
+[Unit]
+Description=NovaTable multiplayer service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/novatable/server
+Environment=PORT=4747
+Environment=NOVATABLE_DATA=/var/lib/novatable
+Environment=NOVATABLE_PUBLIC=/opt/novatable/public
+ExecStart=/usr/bin/node /opt/novatable/server/server.mjs
+Restart=always
+RestartSec=3
+User=novatable
+Group=novatable
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/novatable
+
+[Install]
+WantedBy=multi-user.target

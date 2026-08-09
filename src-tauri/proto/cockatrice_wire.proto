@@ -1,0 +1,265 @@
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Minimal wire-compatible view of the Cockatrice protocol at reference commit
+// 6766b0af89cec6c2bfbad1b344ee148f5e782d8a.
+//
+// Cockatrice models command and event variants using proto2 extensions.
+// Extension fields have the same binary representation as ordinary fields, so
+// this boundary schema maps only the fields NovaTable currently understands
+// and lets Protobuf safely ignore all others.
+
+syntax = "proto2";
+
+package novatable.cockatrice;
+
+message CommandContainer {
+  optional uint64 cmd_id = 1;
+  optional uint32 game_id = 10;
+  optional uint32 room_id = 20;
+
+  repeated SessionCommand session_command = 100;
+  repeated RoomCommand room_command = 102;
+}
+
+message SessionCommand {
+  optional CommandPing ping = 1000;
+  optional CommandLogin login = 1001;
+  optional CommandListRooms list_rooms = 1014;
+  optional CommandJoinRoom join_room = 1015;
+  optional CommandRegister register = 1016;
+  optional CommandActivate activate = 1017;
+  optional CommandRequestPasswordSalt request_password_salt = 1024;
+}
+
+message CommandPing {}
+
+message CommandLogin {
+  optional string user_name = 1;
+  optional string password = 2;
+  optional string client_id = 3;
+  optional string client_version = 4;
+  repeated string client_features = 5;
+  optional string hashed_password = 6;
+}
+
+message CommandListRooms {}
+
+message CommandJoinRoom {
+  optional uint32 room_id = 1;
+}
+
+message CommandRegister {
+  required string user_name = 1;
+  optional string password = 2;
+  optional string email = 3;
+  optional string country = 5;
+  optional string real_name = 6;
+  optional string client_id = 7;
+  optional string hashed_password = 8;
+}
+
+message CommandActivate {
+  required string user_name = 1;
+  required string token = 2;
+  optional string client_id = 3;
+}
+
+message CommandRequestPasswordSalt {
+  required string user_name = 1;
+}
+
+message RoomCommand {
+  optional CommandLeaveRoom leave_room = 1000;
+  optional CommandRoomSay room_say = 1001;
+  optional CommandJoinGame join_game = 1003;
+}
+
+message CommandLeaveRoom {}
+
+message CommandRoomSay {
+  optional string message = 1;
+}
+
+message CommandJoinGame {
+  optional sint32 game_id = 1 [default = -1];
+  optional string password = 2;
+  optional bool spectator = 3;
+  optional bool override_restrictions = 4;
+  optional bool join_as_judge = 5;
+}
+
+message ServerMessage {
+  enum MessageType {
+    RESPONSE = 0;
+    SESSION_EVENT = 1;
+    GAME_EVENT_CONTAINER = 2;
+    ROOM_EVENT = 3;
+  }
+
+  optional MessageType message_type = 1;
+  optional Response response = 2;
+  optional SessionEvent session_event = 3;
+  optional bytes game_event_container = 4;
+  optional RoomEvent room_event = 5;
+}
+
+message Response {
+  optional uint64 cmd_id = 1;
+  optional int32 response_code = 2;
+  optional ResponseJoinRoom join_room = 1000;
+  optional ResponseLogin login = 1005;
+  optional ResponseRegister register = 1009;
+  optional ResponsePasswordSalt password_salt = 1017;
+}
+
+message ResponseJoinRoom {
+  optional ServerInfoRoom room_info = 1;
+}
+
+message ResponseLogin {
+  optional ServerInfoUser user_info = 1;
+  repeated ServerInfoUser buddy_list = 2;
+  repeated ServerInfoUser ignore_list = 3;
+  optional string denied_reason_str = 4;
+  optional uint64 denied_end_time = 5;
+  repeated string missing_features = 6;
+}
+
+message ResponsePasswordSalt {
+  optional string password_salt = 1;
+}
+
+message ResponseRegister {
+  optional string denied_reason_str = 1;
+  optional uint64 denied_end_time = 2;
+}
+
+message ServerInfoUser {
+  optional string name = 1;
+  optional uint32 user_level = 2;
+  optional string address = 3;
+  optional string real_name = 4;
+  optional string country = 6;
+  optional bytes avatar_bmp = 7;
+  optional sint32 id = 8 [default = -1];
+  optional sint32 server_id = 9 [default = -1];
+  optional uint64 session_id = 10;
+  optional uint64 accountage_secs = 11;
+  optional string email = 12;
+  optional string client_id = 13;
+  optional string privilege_level = 14;
+}
+
+message SessionEvent {
+  optional EventServerIdentification server_identification = 500;
+  optional bytes server_complete_list = 600;
+  optional bytes server_message = 1000;
+  optional bytes server_shutdown = 1001;
+  optional bytes connection_closed = 1002;
+  optional bytes user_message = 1003;
+  optional EventListRooms list_rooms = 1004;
+  optional bytes user_joined = 1007;
+  optional bytes user_left = 1008;
+  optional EventGameJoined game_joined = 1009;
+}
+
+message EventGameJoined {
+  optional ServerInfoGame game_info = 1;
+  repeated ServerInfoGameType game_types = 2;
+  optional sint32 host_id = 3 [default = -1];
+  optional sint32 player_id = 4 [default = -1];
+  optional bool spectator = 5;
+  optional bool resuming = 6;
+  optional bool judge = 7;
+}
+
+message EventListRooms {
+  repeated ServerInfoRoom room_list = 1;
+}
+
+message RoomEvent {
+  optional sint32 room_id = 1;
+  optional EventLeaveRoom leave_room = 1000;
+  optional EventJoinRoom join_room = 1001;
+  optional EventRoomSay room_say = 1002;
+  optional EventListGames list_games = 1003;
+}
+
+message EventLeaveRoom {
+  optional string name = 1;
+}
+
+message EventJoinRoom {
+  optional ServerInfoUser user_info = 1;
+}
+
+message EventRoomSay {
+  enum RoomMessageType {
+    USER_MESSAGE = 0;
+    WELCOME = 1;
+    CHAT_HISTORY = 2;
+  }
+
+  optional string name = 1;
+  optional string message = 2;
+  optional RoomMessageType message_type = 3;
+  optional uint64 time_of = 4;
+}
+
+message EventListGames {
+  repeated ServerInfoGame game_list = 1;
+}
+
+message ServerInfoRoom {
+  optional sint32 room_id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional uint32 game_count = 4;
+  optional uint32 player_count = 5;
+  optional bool auto_join = 6;
+  repeated ServerInfoGame game_list = 7;
+  repeated ServerInfoUser user_list = 8;
+  repeated ServerInfoGameType game_type_list = 9;
+  optional string permission_level = 10;
+  optional string privilege_level = 11;
+}
+
+message ServerInfoGame {
+  optional sint32 server_id = 1 [default = -1];
+  optional sint32 room_id = 2 [default = -1];
+  optional sint32 game_id = 3 [default = -1];
+  optional string description = 4;
+  optional bool with_password = 5;
+  optional uint32 max_players = 6;
+  repeated sint32 game_types = 7;
+  optional ServerInfoUser creator_info = 8;
+  optional bool only_buddies = 9;
+  optional bool only_registered = 10;
+  optional bool spectators_allowed = 11;
+  optional bool spectators_need_password = 12;
+  optional bool spectators_can_chat = 13;
+  optional bool spectators_omniscient = 14;
+  optional bool share_decklists_on_load = 15;
+  optional uint32 player_count = 30;
+  optional uint32 spectators_count = 31;
+  optional bool started = 50;
+  optional uint32 start_time = 51;
+  optional bool closed = 52;
+}
+
+message ServerInfoGameType {
+  optional sint32 game_type_id = 1;
+  optional string description = 2;
+}
+
+message EventServerIdentification {
+  enum ServerOptions {
+    NO_OPTIONS = 0;
+    SUPPORTS_PASSWORD_HASH = 1;
+  }
+
+  optional string server_name = 1;
+  optional string server_version = 2;
+  optional uint32 protocol_version = 3;
+  optional ServerOptions server_options = 4 [default = NO_OPTIONS];
+}

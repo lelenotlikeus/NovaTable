@@ -1,0 +1,31 @@
+[package]
+name = "novatable"
+version = "0.1.0"
+description = "A modern open virtual tabletop for card games"
+authors = ["NovaTable contributors"]
+edition = "2021"
+license = "GPL-2.0-only"
+
+[lib]
+name = "novatable_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+prost-build = "0.14"
+protoc-bin-vendored = "3"
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+futures-util = "0.3"
+prost = "0.14"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tauri = { version = "2", features = [] }
+thiserror = "2"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-native-roots"] }
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
