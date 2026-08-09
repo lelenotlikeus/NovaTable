@@ -13,45 +13,35 @@ import { clearRemoteToken, remoteApi, remoteApiEnabled, storeRemoteToken } from 
 const DATA_KEY = "novatable.platform.v1";
 const SESSION_KEY = "novatable.session.v1";
 
-const demoUsers: UserProfile[] = [
-  { id: "demo-mira", email: "", username: "mira", displayName: "Mira Vale", avatar: "MV", presence: "online" },
-  { id: "demo-orin", email: "", username: "orin", displayName: "Orin", avatar: "OR", presence: "in-game" },
-  { id: "demo-jace", email: "", username: "jace87", displayName: "Jace87", avatar: "J8", presence: "offline" },
-  { id: "demo-nia", email: "", username: "nia", displayName: "Nia", avatar: "NI", presence: "online" }
-];
-
-function demoPlayer(user: UserProfile, host = false): LobbyPlayer {
+function lobbyPlayer(user: UserProfile, host = false): LobbyPlayer {
   return {
     id: id("seat"), userId: user.id, username: user.username,
     displayName: user.displayName, avatar: user.avatar,
     avatarImage: user.avatarImage, accentColor: user.accentColor,
-    deckId: host ? "demo-deck" : null,
-    deckName: host ? "Arcane Coalition" : null,
-    commander: host ? "Atraxa, Praetors' Voice" : null,
+    deckId: null, deckName: null, commander: null,
     ready: false, host, bot: user.id.startsWith("bot-")
   };
 }
 
 function emptyData(): PlatformData {
   return {
-    accounts: [], directory: demoUsers, friendships: [], decks: [],
-    lobbies: [{
-      id: "public-commander", code: "AETHER", name: "Casual Commander",
-      hostId: "demo-mira", format: "Commander", privacy: "public", maxPlayers: 4,
-      spectatorsAllowed: true, startingLife: 40, password: "",
-      description: "Relaxed pods, upgraded precons welcome.",
-      tags: ["Casual", "Voice optional"], status: "waiting",
-      players: [demoPlayer(demoUsers[0], true), demoPlayer(demoUsers[1])],
-      messages: [], createdAt: Date.now()
-    }],
-    invites: []
+    accounts: [], directory: [], friendships: [], decks: [], lobbies: [], invites: []
   };
 }
 
 function read(): PlatformData {
   const value = localStorage.getItem(DATA_KEY);
   if (value) {
-    try { return JSON.parse(value) as PlatformData; } catch { /* reset below */ }
+    try {
+      const data = JSON.parse(value) as PlatformData;
+      const size = data.directory.length + data.friendships.length + data.lobbies.length + data.invites.length;
+      data.directory = data.directory.filter((user) => !user.id.startsWith("demo-"));
+      data.friendships = data.friendships.filter((friendship) => !friendship.fromId.startsWith("demo-") && !friendship.toId.startsWith("demo-"));
+      data.lobbies = data.lobbies.filter((lobby) => lobby.id !== "public-commander" && !lobby.hostId.startsWith("demo-"));
+      data.invites = data.invites.filter((invite) => !invite.fromId.startsWith("demo-") && !invite.toId.startsWith("demo-") && invite.lobbyId !== "public-commander");
+      if (size !== data.directory.length + data.friendships.length + data.lobbies.length + data.invites.length) write(data);
+      return data;
+    } catch { /* reset below */ }
   }
   const data = emptyData();
   write(data);
@@ -77,22 +67,6 @@ function publicUser(account: StoredAccount): UserProfile {
   return profile;
 }
 
-function starterDeck(ownerId: string): Deck {
-  return {
-    id: id("deck"), ownerId, name: "Arcane Coalition", format: "Commander",
-    commander: "Atraxa, Praetors' Voice", updatedAt: Date.now(),
-    cards: [
-      { name: "Sol Ring", quantity: 1 }, { name: "Arcane Signet", quantity: 1 },
-      { name: "Command Tower", quantity: 1 }, { name: "Swords to Plowshares", quantity: 1 },
-      { name: "Counterspell", quantity: 1 }, { name: "Cultivate", quantity: 1 },
-      { name: "Kodama's Reach", quantity: 1 }, { name: "Rhystic Study", quantity: 1 },
-      { name: "Beast Within", quantity: 1 }, { name: "Swiftfoot Boots", quantity: 1 },
-      { name: "Forest", quantity: 30 }, { name: "Island", quantity: 29 },
-      { name: "Plains", quantity: 29 }
-    ]
-  };
-}
-
 export async function registerAccount(input: { email: string; username: string; password: string; displayName: string }): Promise<UserProfile> {
   if (remoteApiEnabled) {
     const result = await remoteApi<{ user: UserProfile; token: string }>("/register", { method: "POST", body: JSON.stringify(input) });
@@ -113,8 +87,6 @@ export async function registerAccount(input: { email: string; username: string; 
     presence: "online", theme: "dark", createdAt: Date.now()
   };
   data.accounts.push(account);
-  data.decks.push(starterDeck(account.id));
-  data.friendships.push({ id: id("friend"), fromId: "demo-mira", toId: account.id, status: "pending" });
   write(data);
   localStorage.setItem(SESSION_KEY, account.id);
   return publicUser(account);
@@ -235,7 +207,7 @@ export function createLobby(user: UserProfile, input: {
     maxPlayers: input.maxPlayers, spectatorsAllowed: input.spectatorsAllowed,
     startingLife: input.startingLife, password: input.password, description: input.description.trim(),
     tags: [input.format === "Commander" ? "Commander" : "Constructed", input.privacy === "private" ? "Invite only" : "Open"],
-    status: "waiting", players: [demoPlayer(user, true)],
+    status: "waiting", players: [lobbyPlayer(user, true)],
     messages: [{ id: id("message"), author: "NovaTable", text: "Lobby created. Choose a deck and ready up.", createdAt: Date.now() }],
     createdAt: Date.now()
   };
@@ -249,7 +221,7 @@ export function joinLobby(lobbyId: string, user: UserProfile, password = ""): Lo
     if (lobby.password && lobby.password !== password) throw new Error("Lobby password is incorrect.");
     if (lobby.players.some((player) => player.userId === user.id)) return;
     if (lobby.players.length >= lobby.maxPlayers) throw new Error("This lobby is full.");
-    lobby.players.push(demoPlayer(user));
+    lobby.players.push(lobbyPlayer(user));
   });
 }
 
@@ -259,7 +231,6 @@ function storeRemoteAccount(user: UserProfile, token: string) {
   if (existing) Object.assign(existing, user);
   else {
     data.accounts.push({ ...user, passwordHash: "remote", createdAt: Date.now() });
-    data.decks.push(starterDeck(user.id));
   }
   write(data);
   localStorage.setItem(SESSION_KEY, user.id);

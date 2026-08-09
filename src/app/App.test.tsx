@@ -16,6 +16,11 @@ describe("NovaTable vertical slice", () => {
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     expect(await screen.findByText("Bring the pod together.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Decks" }));
+    fireEvent.change(screen.getByLabelText("Commander"), { target: { value: "Atraxa, Praetors' Voice" } });
+    fireEvent.click(screen.getByRole("button", { name: /import commander deck/i }));
+    expect(await screen.findByText("My Commander Deck")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
     fireEvent.click(screen.getByRole("button", { name: /create lobby/i }));
     fireEvent.click(screen.getByRole("button", { name: /create lobby/i }));
 
@@ -71,7 +76,9 @@ describe("NovaTable vertical slice", () => {
     expect(await screen.findByText("Bring the pod together.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Decks" }));
-    fireEvent.click(screen.getByText("Arcane Coalition").closest(".deck-card")!);
+    fireEvent.change(screen.getByLabelText("Commander"), { target: { value: "Atraxa, Praetors' Voice" } });
+    fireEvent.click(screen.getByRole("button", { name: /import commander deck/i }));
+    fireEvent.click((await screen.findByText("My Commander Deck")).closest(".deck-card")!);
     expect(screen.getByText("Deck cards")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Deck name"), { target: { value: "Edited Coalition" } });
     fireEvent.change(screen.getByLabelText("Cards to add"), { target: { value: "2 Lightning Bolt" } });

@@ -39,8 +39,9 @@ npm run desktop:dev
 ```
 
 Development mode uses the local fallback unless `VITE_API_URL` is set. Create
-an account, create **Commander Night**, use **Add dev player** for
-the other three seats, select the starter deck, become Ready, and Start Game.
+an account, import a Commander deck, create **Commander Night**, use
+**Add dev player** for the other three seats, select your deck, become Ready,
+and Start Game.
 
 Verification:
 
