@@ -195,6 +195,20 @@ describe("Commander board interactions", () => {
     expect(within(hand).getByRole("button", { name: "Sol Ring" })).toBeInTheDocument();
   });
 
+  it("keeps scry views fixed when a shown card leaves the library", () => {
+    render(<CommanderBoard players={players} startingLife={40} lobbyName="Commander Night" onLeave={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "Look / Scry X" }));
+    const prompt = screen.getByRole("dialog", { name: "Look at top cards" });
+    fireEvent.change(within(prompt).getByLabelText("Number of cards"), { target: { value: "3" } });
+    fireEvent.click(within(prompt).getByRole("button", { name: "Confirm" }));
+
+    const viewer = screen.getByRole("dialog", { name: "Library cards" });
+    expect(within(viewer).getAllByRole("button", { name: /Sol Ring|Forest/ })).toHaveLength(3);
+    fireEvent.contextMenu(within(viewer).getByRole("button", { name: "Sol Ring" }), { clientX: 500, clientY: 300 });
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: "Graveyard / Sacrifice" }));
+    expect(within(viewer).getAllByRole("button", { name: "Forest" })).toHaveLength(2);
+  });
+
   it("moves cards through the stack and exposes the extended tabletop actions", () => {
     renderGame();
     fireEvent.contextMenu(screen.getByRole("button", { name: "Sol Ring" }), { clientX: 500, clientY: 300 });
