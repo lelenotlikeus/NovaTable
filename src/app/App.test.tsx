@@ -18,6 +18,7 @@ describe("NovaTable vertical slice", () => {
     expect(await screen.findByText("Bring the pod together.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Decks" }));
     fireEvent.change(screen.getByLabelText("Commander"), { target: { value: "Atraxa, Praetors' Voice" } });
+    fireEvent.change(screen.getByLabelText("Card list"), { target: { value: "1 Sol Ring\n98 Forest" } });
     fireEvent.click(screen.getByRole("button", { name: /import commander deck/i }));
     expect(await screen.findByText("My Commander Deck")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Home" }));

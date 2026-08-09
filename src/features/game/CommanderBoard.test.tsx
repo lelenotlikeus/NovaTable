@@ -211,8 +211,8 @@ describe("Commander board interactions", () => {
     fireEvent.click(within(menu).getByRole("button", { name: "Turn face down" }));
     expect(within(stack).getByAltText("Face-down card")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "combat" }));
-    expect(document.querySelector(".turn-status i")).toHaveTextContent("combat");
+    fireEvent.click(screen.getByRole("button", { name: "attackers" }));
+    expect(document.querySelector(".turn-status i")).toHaveTextContent("attackers");
   });
 
   it("uses in-game dialogs and allows annotations and named counters to be removed", () => {

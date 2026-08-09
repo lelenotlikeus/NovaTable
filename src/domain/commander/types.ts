@@ -1,6 +1,6 @@
 import type { DeckCardEntry } from "../platform/types";
 
-export const commanderPhases = ["untap", "upkeep", "draw", "main-1", "combat", "main-2", "end"] as const;
+export const commanderPhases = ["untap", "upkeep", "draw", "main-1", "begin-combat", "attackers", "blockers", "combat-damage", "end-combat", "main-2", "end"] as const;
 export type CommanderPhase = (typeof commanderPhases)[number];
 export type CommanderZone = "library" | "hand" | "battlefield" | "graveyard" | "exile" | "commander" | "stack";
 
@@ -32,6 +32,7 @@ export interface CommanderPlayer {
 export interface CommanderCardState {
   id: string;
   ownerId: string;
+  controllerId: string;
   name: string;
   zone: CommanderZone;
   order: number;
@@ -51,6 +52,9 @@ export interface CommanderCardState {
   battlefieldY: number | null;
   rotation: number;
   zIndex: number;
+  transformed: boolean;
+  artworkUrl?: string | null;
+  backArtworkUrl?: string | null;
   palette: readonly [string, string];
 }
 
@@ -103,6 +107,9 @@ export type CommanderGameAction =
   | { type: "RESET_POWER_TOUGHNESS"; cardId: string }
   | { type: "SET_NAMED_COUNTER"; cardId: string; name: string; value: number }
   | { type: "TOGGLE_FACE_DOWN"; cardId: string }
+  | { type: "TOGGLE_TRANSFORM"; cardId: string }
+  | { type: "CHANGE_CONTROLLER"; cardId: string; playerId: string }
+  | { type: "SET_CARD_ARTWORK"; cardId: string; artworkUrl: string | null; backArtworkUrl?: string | null }
   | { type: "CLONE_CARD"; cardId: string }
   | { type: "ATTACH_CARD"; cardId: string; targetCardId: string | null }
   | { type: "SET_ANNOTATION"; cardId: string; annotation: string }

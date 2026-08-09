@@ -111,7 +111,32 @@ describe("Commander game event reducer", () => {
     state = commanderGameReducer(state, { type: "MOVE_ZONE_CARDS", playerId: "p0", from: "graveyard", zone: "library", placement: "bottom" });
     expect(cardsInZone(state, "p0", "graveyard")).toHaveLength(0);
     expect(cardsInZone(state, "p0", "library")).toHaveLength(99);
-    state = commanderGameReducer(state, { type: "SET_PHASE", phase: "combat" });
-    expect(state.phase).toBe("combat");
+    state = commanderGameReducer(state, { type: "SET_PHASE", phase: "attackers" });
+    expect(state.phase).toBe("attackers");
+  });
+
+  it("does not invent Wastes and shuffles each new game from the shared seed", () => {
+    const shortDeck = players.map((player) => ({ ...player, cards: [{ name: "Sol Ring", quantity: 1 }, { name: "Forest", quantity: 9 }] }));
+    const first = createCommanderGame(shortDeck, 40, 123);
+    const second = createCommanderGame(shortDeck, 40, 456);
+    expect(cardsInZone(first, "p0", "library")).toHaveLength(10);
+    expect(cardsInZone(first, "p0", "library").some((card) => card.name === "Wastes")).toBe(false);
+    expect(cardsInZone(first, "p0", "library").map((card) => card.id)).not.toEqual(cardsInZone(second, "p0", "library").map((card) => card.id));
+  });
+
+  it("supports complete combat steps, control changes, transforms and shared artwork", () => {
+    let state = createCommanderGame(players, 40);
+    const card = cardsInZone(state, "p0", "library")[0];
+    state = commanderGameReducer(state, { type: "MOVE_CARD", cardId: card.id, zone: "battlefield" });
+    state = commanderGameReducer(state, { type: "CHANGE_CONTROLLER", cardId: card.id, playerId: "p1" });
+    expect(cardsInZone(state, "p1", "battlefield")).toContainEqual(expect.objectContaining({ id: card.id }));
+    state = commanderGameReducer(state, { type: "TOGGLE_TRANSFORM", cardId: card.id });
+    state = commanderGameReducer(state, { type: "SET_CARD_ARTWORK", cardId: card.id, artworkUrl: "front.jpg", backArtworkUrl: "back.jpg" });
+    expect(state.cards[card.id]).toMatchObject({ transformed: true, artworkUrl: "front.jpg", backArtworkUrl: "back.jpg" });
+    state = commanderGameReducer(state, { type: "SET_PHASE", phase: "begin-combat" });
+    state = commanderGameReducer(state, { type: "NEXT_PHASE" });
+    expect(state.phase).toBe("attackers");
+    state = commanderGameReducer(state, { type: "MOVE_CARD", cardId: card.id, zone: "graveyard" });
+    expect(cardsInZone(state, "p0", "graveyard")).toContainEqual(expect.objectContaining({ id: card.id, controllerId: "p0", transformed: false }));
   });
 });

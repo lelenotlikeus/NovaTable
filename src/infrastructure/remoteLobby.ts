@@ -21,7 +21,7 @@ export async function onlineFindLobby(code: string): Promise<Lobby> {
 
 export async function onlineCreateLobby(user: UserProfile, input: {
   name: string; format: LobbyFormat; privacy: "public" | "private"; maxPlayers: number;
-  spectatorsAllowed: boolean; startingLife: number; password: string; description: string;
+  spectatorsAllowed: boolean; startingLife: number; password: string; description: string; bracket: 1 | 2 | 3 | 4 | 5;
 }) {
   return remoteApiEnabled ? post<Lobby>("/lobbies", input) : local.createLobby(user, input);
 }
@@ -55,6 +55,14 @@ export async function sendGameAction(gameId: string, action: CommanderGameAction
 
 export async function gameActions(gameId: string, after: number) {
   return remoteApi<Array<{ sequence: number; action: CommanderGameAction }>>(`/games/${gameId}/actions?after=${after}`);
+}
+
+export async function submitHonor(gameId: string, targetUserId: string) {
+  return remoteApiEnabled ? post<{ honor: number }>(`/games/${gameId}/honor`, { targetUserId }) : { honor: 0 };
+}
+
+export async function honorLeaderboard() {
+  return remoteApiEnabled ? remoteApi<UserProfile[]>("/leaderboard") : [];
 }
 
 export { remoteApiEnabled };

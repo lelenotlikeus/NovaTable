@@ -116,7 +116,7 @@ function lobbyAction(lobby, user, input) {
     }
     case "settings":
       if (lobby.hostId !== user.id) throw new Error("Only the host can change lobby settings.");
-      for (const key of ["name", "privacy", "startingLife", "spectatorsAllowed", "description"]) if (key in (input.patch || {})) lobby[key] = input.patch[key];
+      for (const key of ["name", "privacy", "startingLife", "spectatorsAllowed", "description", "bracket"]) if (key in (input.patch || {})) lobby[key] = input.patch[key];
       break;
     case "kick":
       if (lobby.hostId !== user.id) throw new Error("Only the host can remove players.");
@@ -126,7 +126,8 @@ function lobbyAction(lobby, user, input) {
       if (lobby.hostId !== user.id) throw new Error("Only the host can start the game.");
       if (lobby.players.length !== lobby.maxPlayers || lobby.players.some((candidate) => !candidate.ready)) throw new Error("Fill every seat and make sure every player is ready.");
       lobby.status = "in-game";
-      data.games[lobby.id] ||= { sequence: 0, actions: [] };
+      lobby.gameSeed = randomBytes(4).readUInt32LE() || 1;
+      data.games[lobby.id] = { sequence: 0, actions: [], activePlayerId: lobby.players[0].userId, phaseIndex: 0 };
       break;
     default: throw new Error("Unknown lobby action.");
   }
@@ -138,7 +139,7 @@ function staticFile(pathname, response) {
   let file = join(publicDir, relative);
   if (!existsSync(file) || statSync(file).isDirectory()) file = join(publicDir, "index.html");
   if (!existsSync(file)) return false;
-  const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
+  const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
   response.writeHead(200, { "Content-Type": types[extname(file)] || "application/octet-stream" });
   response.end(readFileSync(file));
   return true;
@@ -176,6 +177,11 @@ createServer(async (request, response) => {
     const user = sessionUser(request);
     if (url.pathname.startsWith("/api/") && !user) return send(response, 401, { error: "Please log in again." });
 
+    if (request.method === "GET" && url.pathname === "/api/leaderboard") {
+      const users = data.accounts.map((account) => account.user).sort((a, b) => (b.honor || 0) - (a.honor || 0)).slice(0, 20);
+      return send(response, 200, users);
+    }
+
     if (request.method === "POST" && url.pathname === "/api/profile") {
       const input = await body(request); const displayName = String(input.displayName || "").trim().slice(0, 40);
       if (!displayName) throw new Error("Display name is required.");
@@ -203,7 +209,7 @@ createServer(async (request, response) => {
       const lobby = { id: `lobby-${randomUUID()}`, code: randomBytes(4).toString("hex").slice(0, 6).toUpperCase(), name: String(input.name).trim().slice(0, 80), hostId: user.id,
         format: String(input.format || "Commander"), privacy: input.privacy === "public" ? "public" : "private", maxPlayers: Math.max(2, Math.min(4, Number(input.maxPlayers) || 4)),
         spectatorsAllowed: Boolean(input.spectatorsAllowed), startingLife: Math.max(1, Number(input.startingLife) || 40), password: String(input.password || "").slice(0, 80),
-        description: String(input.description || "").trim().slice(0, 300), tags: [input.format === "Commander" ? "Commander" : "Constructed", input.privacy === "private" ? "Invite only" : "Open"],
+        description: String(input.description || "").trim().slice(0, 300), bracket: Math.max(1, Math.min(5, Number(input.bracket) || 3)), tags: [input.format === "Commander" ? "Commander" : "Constructed", `Bracket ${Math.max(1, Math.min(5, Number(input.bracket) || 3))}`, input.privacy === "private" ? "Invite only" : "Open"],
         status: "waiting", players: [player(user, true)], messages: [{ id: `message-${randomUUID()}`, author: "NovaTable", text: "Lobby created. Choose a deck and ready up.", createdAt: Date.now() }], createdAt: Date.now() };
       data.lobbies.push(lobby); save(); return send(response, 201, safeLobby(lobby));
     }
@@ -212,6 +218,17 @@ createServer(async (request, response) => {
       if (!lobby) return send(response, 404, { error: "Lobby no longer exists." });
       lobbyAction(lobby, user, await body(request)); save(); return send(response, 200, safeLobby(lobby));
     }
+    if (request.method === "POST" && parts[0] === "api" && parts[1] === "games" && parts[3] === "honor") {
+      const lobby = data.lobbies.find((candidate) => candidate.id === parts[2]);
+      if (!lobby?.players.some((candidate) => candidate.userId === user.id)) return send(response, 403, { error: "You are not in this game." });
+      const input = await body(request); const targetUserId = String(input.targetUserId || "");
+      if (!targetUserId || targetUserId === user.id || !lobby.players.some((candidate) => candidate.userId === targetUserId)) throw new Error("Choose another player from this game.");
+      const target = data.accounts.find((account) => account.user.id === targetUserId); if (!target) throw new Error("Development players cannot receive Honor.");
+      const game = data.games[parts[2]] ||= { sequence: 0, actions: [] }; game.honorVotes ||= {};
+      if (game.honorVotes[user.id]) throw new Error("You already awarded Honor for this game.");
+      game.honorVotes[user.id] = targetUserId; target.user.honor = (target.user.honor || 0) + 1; save();
+      return send(response, 201, { honor: target.user.honor });
+    }
     if (parts[0] === "api" && parts[1] === "games" && parts[3] === "actions") {
       const lobby = data.lobbies.find((candidate) => candidate.id === parts[2]);
       if (!lobby?.players.some((candidate) => candidate.userId === user.id)) return send(response, 403, { error: "You are not in this game." });
@@ -219,8 +236,23 @@ createServer(async (request, response) => {
       if (request.method === "GET") return send(response, 200, game.actions.filter((event) => event.sequence > Number(url.searchParams.get("after") || 0)));
       if (request.method === "POST") {
         const input = await body(request); if (!input.action?.type) throw new Error("Invalid game action.");
-        if (input.action.playerId && input.action.playerId !== user.id) return send(response, 403, { error: "You may only change your own player state." });
-        if (input.action.cardId && !String(input.action.cardId).includes(user.id)) return send(response, 403, { error: "You may only move your own cards." });
+        const selfOnly = new Set(["DRAW_CARD", "MOVE_ZONE_CARDS", "UNTAP_ALL", "CHANGE_LIFE", "CHANGE_POISON", "CHANGE_COMMANDER_TAX", "CHANGE_COMMANDER_DAMAGE", "CREATE_TOKEN", "ROLL_DIE", "FLIP_COIN", "CHAT_MESSAGE", "SHUFFLE_LIBRARY", "MILL", "MULLIGAN"]);
+        if (selfOnly.has(input.action.type) && input.action.playerId !== user.id) return send(response, 403, { error: "You may only change your own player state." });
+        const turnActions = new Set(["SET_PHASE", "NEXT_PHASE", "NEXT_TURN"]);
+        game.activePlayerId ||= lobby.players[0].userId; game.phaseIndex ||= 0;
+        if (turnActions.has(input.action.type) && game.activePlayerId !== user.id) return send(response, 403, { error: "Only the active player can advance the turn." });
+        const phases = ["untap", "upkeep", "draw", "main-1", "begin-combat", "attackers", "blockers", "combat-damage", "end-combat", "main-2", "end"];
+        if (input.action.type === "SET_PHASE") game.phaseIndex = Math.max(0, phases.indexOf(input.action.phase));
+        if (input.action.type === "NEXT_PHASE" && ++game.phaseIndex >= phases.length) {
+          game.phaseIndex = 0;
+          const activeIndex = lobby.players.findIndex((candidate) => candidate.userId === game.activePlayerId);
+          game.activePlayerId = lobby.players[(activeIndex + 1) % lobby.players.length].userId;
+        }
+        if (input.action.type === "NEXT_TURN") {
+          game.phaseIndex = 0;
+          const activeIndex = lobby.players.findIndex((candidate) => candidate.userId === game.activePlayerId);
+          game.activePlayerId = lobby.players[(activeIndex + 1) % lobby.players.length].userId;
+        }
         const event = { sequence: ++game.sequence, action: input.action }; game.actions.push(event); game.actions = game.actions.slice(-5000); save();
         return send(response, 201, { sequence: event.sequence });
       }

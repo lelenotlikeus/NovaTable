@@ -14,6 +14,8 @@ export interface CardRecord {
   power: string | null;
   toughness: string | null;
   imageUrl: string | null;
+  otherFaceName?: string;
+  otherFaceImageUrl?: string | null;
   printingId?: string;
   setCode?: string;
   setName?: string;
@@ -109,6 +111,7 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 
 export function cardRecordFromScryfall(card: ScryfallCard, requestedName = card.name): CardRecord {
   const firstFace = card.card_faces?.find((face) => face.name?.toLocaleLowerCase() === requestedName.toLocaleLowerCase()) ?? card.card_faces?.[0];
+  const otherFace = card.card_faces?.find((face) => face !== firstFace);
   return {
     name: firstFace?.name ?? card.name,
     nameLower: requestedName.toLocaleLowerCase(),
@@ -118,6 +121,8 @@ export function cardRecordFromScryfall(card: ScryfallCard, requestedName = card.
     power: firstFace?.power ?? card.power ?? null,
     toughness: firstFace?.toughness ?? card.toughness ?? null,
     imageUrl: card.image_uris?.large ?? firstFace?.image_uris?.large ?? card.image_uris?.normal ?? firstFace?.image_uris?.normal ?? null,
+    otherFaceName: otherFace?.name,
+    otherFaceImageUrl: otherFace?.image_uris?.large ?? otherFace?.image_uris?.normal ?? null,
     printingId: card.id,
     setCode: card.set?.toUpperCase(),
     setName: card.set_name,
@@ -252,7 +257,8 @@ async function resolveCard(name: string, key: string) {
 
 function withLargeArtwork<T extends CardRecord>(card: T): T {
   const imageUrl = card.imageUrl?.replace("/small/", "/large/").replace("/normal/", "/large/") ?? null;
-  return imageUrl === card.imageUrl ? card : { ...card, imageUrl };
+  const otherFaceImageUrl = card.otherFaceImageUrl?.replace("/small/", "/large/").replace("/normal/", "/large/") ?? null;
+  return imageUrl === card.imageUrl && otherFaceImageUrl === card.otherFaceImageUrl ? card : { ...card, imageUrl, otherFaceImageUrl };
 }
 
 export async function getCardPrintings(name: string): Promise<CardPrinting[]> {

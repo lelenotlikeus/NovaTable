@@ -27,7 +27,7 @@ describe("card artwork preferences", () => {
         { name: "Treasure", type_line: "Token Artifact — Treasure", image_uris: { normal: "treasure.jpg" } }
       ]
     }, "Treasure");
-    expect(treasure).toMatchObject({ name: "Treasure", nameLower: "treasure", imageUrl: "treasure.jpg", typeLine: "Token Artifact — Treasure" });
+    expect(treasure).toMatchObject({ name: "Treasure", nameLower: "treasure", imageUrl: "treasure.jpg", typeLine: "Token Artifact — Treasure", otherFaceName: "Dinosaur", otherFaceImageUrl: "dinosaur.jpg" });
   });
 
   it("prefers large Scryfall artwork", () => {

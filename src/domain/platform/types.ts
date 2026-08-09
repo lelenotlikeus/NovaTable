@@ -19,6 +19,7 @@ export interface UserProfile {
   accentColor?: string;
   bio?: string;
   theme?: InterfaceTheme;
+  honor?: number;
   presence: Presence;
 }
 
@@ -78,6 +79,8 @@ export interface Lobby {
   startingLife: number;
   password: string;
   description: string;
+  bracket: 1 | 2 | 3 | 4 | 5;
+  gameSeed?: number;
   tags: string[];
   status: "waiting" | "in-game";
   players: LobbyPlayer[];

@@ -822,7 +822,7 @@ impl CockatriceSocket {
                 let _ = stream.shutdown().await;
             }
             Self::WebSocket { stream, .. } => {
-                let _ = stream.close(None).await;
+                let _ = stream.close().await;
             }
         }
     }

@@ -23,7 +23,6 @@ function expandedLibrary(player: GameSetupPlayer) {
   const names = player.cards.flatMap((entry) => Array.from({ length: entry.quantity }, () => entry.name));
   const commanderIndex = names.findIndex((name) => name.toLowerCase() === player.commander.toLowerCase());
   if (commanderIndex >= 0) names.splice(commanderIndex, 1);
-  while (names.length < 99) names.push("Wastes");
   return names.slice(0, 99);
 }
 
@@ -69,26 +68,26 @@ function draw(state: CommanderGameState, playerId: string, count: number) {
   return log({ ...state, cards }, `${playerName(state, playerId)} drew ${library.length} card${library.length === 1 ? "" : "s"}`, playerId);
 }
 
-export function createCommanderGame(players: GameSetupPlayer[], startingLife = 40): CommanderGameState {
+export function createCommanderGame(players: GameSetupPlayer[], startingLife = 40, seed = 0): CommanderGameState {
   if (players.length !== 4) throw new Error("Commander games require four players in this milestone.");
   const cards: Record<string, CommanderCardState> = {};
   const gamePlayers = Object.fromEntries(players.map((player, playerIndex) => {
     const commanderId = `${player.id}-commander`;
     cards[commanderId] = {
-      id: commanderId, ownerId: player.id, name: player.commander, zone: "commander", order: 0,
+      id: commanderId, ownerId: player.id, controllerId: player.id, name: player.commander, zone: "commander", order: 0,
       tapped: false, faceDown: false, counters: 0, namedCounters: {}, power: null, toughness: null, powerModifier: 0, toughnessModifier: 0,
       token: false, revealed: true, annotation: "", attachedTo: null, battlefieldX: null, battlefieldY: null,
-      rotation: 0, zIndex: 0,
+      rotation: 0, zIndex: 0, transformed: false,
       palette: palette(player.commander)
     };
     expandedLibrary(player).forEach((name, index) => {
       const cardId = `${player.id}-card-${index}`;
       cards[cardId] = {
-        id: cardId, ownerId: player.id, name, zone: "library", order: index,
+        id: cardId, ownerId: player.id, controllerId: player.id, name, zone: "library", order: index,
         tapped: false, faceDown: false, counters: 0, namedCounters: {}, power: null,
         toughness: null, powerModifier: 0, toughnessModifier: 0,
         token: false, revealed: false, annotation: "", attachedTo: null, battlefieldX: null, battlefieldY: null,
-        rotation: 0, zIndex: 0,
+        rotation: 0, zIndex: 0, transformed: false,
         palette: palette(name)
       };
     });
@@ -105,6 +104,7 @@ export function createCommanderGame(players: GameSetupPlayer[], startingLife = 4
     turn: 1, phase: "untap", players: gamePlayers, cards, arrows: [], selectedCardId: null,
     log: [{ id: 1, message: "Commander game started", playerId: null }], nextLogId: 2
   };
+  if (seed) players.forEach((player, index) => { state = { ...state, cards: reorderLibrary(state.cards, player.id, seed + index * 2654435761) }; });
   return state;
 }
 
@@ -148,6 +148,7 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
       cards[card.id] = {
         ...card,
         zone: action.zone,
+        controllerId: action.zone === "battlefield" ? card.controllerId : card.ownerId,
         order,
         tapped: action.zone === "battlefield" ? card.tapped : false,
         attachedTo: action.zone === "battlefield" ? card.attachedTo : null,
@@ -155,7 +156,8 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
         battlefieldX: action.zone === "battlefield" ? action.x ?? card.battlefieldX ?? 50 : null,
         battlefieldY: action.zone === "battlefield" ? action.y ?? card.battlefieldY ?? 50 : null,
         rotation: action.zone === "battlefield" ? card.rotation : 0,
-        zIndex: action.zone === "battlefield" ? action.zIndex ?? card.zIndex : 0
+        zIndex: action.zone === "battlefield" ? action.zIndex ?? card.zIndex : 0,
+        transformed: action.zone === "battlefield" ? card.transformed : false
       };
       const next = { ...state, selectedCardId: null, cards };
       return action.zone === "battlefield" || action.zone === card.zone
@@ -171,9 +173,9 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
         : zoneEdge(cards, action.playerId, action.zone, "max") + 1;
       moving.forEach((card, index) => {
         if (card.token && action.zone !== "battlefield") delete cards[card.id];
-        else cards[card.id] = { ...card, zone: action.zone, order: firstOrder + index,
+        else cards[card.id] = { ...card, zone: action.zone, order: firstOrder + index, controllerId: card.ownerId,
           tapped: false, attachedTo: null, battlefieldX: null, battlefieldY: null, rotation: 0, zIndex: 0,
-          revealed: action.zone !== "hand" && action.zone !== "library" };
+          revealed: action.zone !== "hand" && action.zone !== "library", transformed: false };
       });
       const arrows = state.arrows.filter((arrow) =>
         (arrow.from.kind !== "card" || cards[arrow.from.id]) && (arrow.to.kind !== "card" || cards[arrow.to.id]));
@@ -218,6 +220,18 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
       const card = state.cards[action.cardId]; if (!card) return state;
       return log({ ...state, cards: { ...state.cards, [card.id]: { ...card, faceDown: !card.faceDown } } }, `${card.name} turned ${card.faceDown ? "face up" : "face down"}`, card.ownerId);
     }
+    case "TOGGLE_TRANSFORM": {
+      const card = state.cards[action.cardId]; if (!card) return state;
+      return { ...state, cards: { ...state.cards, [card.id]: { ...card, transformed: !card.transformed } } };
+    }
+    case "CHANGE_CONTROLLER": {
+      const card = state.cards[action.cardId]; if (!card || card.zone !== "battlefield" || !state.players[action.playerId]) return state;
+      return log({ ...state, cards: { ...state.cards, [card.id]: { ...card, controllerId: action.playerId } } }, `${card.name} is now controlled by ${playerName(state, action.playerId)}`, card.ownerId);
+    }
+    case "SET_CARD_ARTWORK": {
+      const card = state.cards[action.cardId]; if (!card) return state;
+      return { ...state, cards: { ...state.cards, [card.id]: { ...card, artworkUrl: action.artworkUrl, backArtworkUrl: action.backArtworkUrl } } };
+    }
     case "CLONE_CARD": {
       const card = state.cards[action.cardId]; if (!card) return state;
       const id = `copy-${state.nextLogId}-${card.id}`;
@@ -249,11 +263,11 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
       for (let index = 0; index < count; index++) {
         const cardId = `token-${state.nextLogId}-${action.playerId}-${index}`;
         cards[cardId] = {
-          id: cardId, ownerId: action.playerId, name, zone: "battlefield", order: firstOrder + index,
+          id: cardId, ownerId: action.playerId, controllerId: action.playerId, name, zone: "battlefield", order: firstOrder + index,
           tapped: false, faceDown: false, counters: Math.max(0, action.counters ?? 0), namedCounters: {}, power, toughness, powerModifier: 0, toughnessModifier: 0,
           token: true, revealed: true, annotation: "", attachedTo: null,
           battlefieldX: 28 + ((state.nextLogId * 13 + index * 9) % 55), battlefieldY: 52 + (index % 2) * 8,
-          rotation: 0, zIndex: state.nextLogId + index,
+          rotation: 0, zIndex: state.nextLogId + index, transformed: false,
           palette: palette(name)
         };
       }
@@ -309,7 +323,7 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
 }
 
 export function cardsInZone(state: CommanderGameState, playerId: string, zone: CommanderZone) {
-  return Object.values(state.cards).filter((card) => card.ownerId === playerId && card.zone === zone).sort((a, b) => a.order - b.order);
+  return Object.values(state.cards).filter((card) => (zone === "battlefield" ? card.controllerId : card.ownerId) === playerId && card.zone === zone).sort((a, b) => a.order - b.order);
 }
 
 export type CardTextShortcut =

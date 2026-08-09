@@ -197,7 +197,7 @@ export function publicLobbies() {
 
 export function createLobby(user: UserProfile, input: {
   name: string; format: LobbyFormat; privacy: "public" | "private"; maxPlayers: number;
-  spectatorsAllowed: boolean; startingLife: number; password: string; description: string;
+  spectatorsAllowed: boolean; startingLife: number; password: string; description: string; bracket: 1 | 2 | 3 | 4 | 5;
 }): Lobby {
   if (!input.name.trim()) throw new Error("Lobby name is required.");
   const data = read();
@@ -205,8 +205,8 @@ export function createLobby(user: UserProfile, input: {
     id: id("lobby"), code: crypto.randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase(),
     name: input.name.trim(), hostId: user.id, format: input.format, privacy: input.privacy,
     maxPlayers: input.maxPlayers, spectatorsAllowed: input.spectatorsAllowed,
-    startingLife: input.startingLife, password: input.password, description: input.description.trim(),
-    tags: [input.format === "Commander" ? "Commander" : "Constructed", input.privacy === "private" ? "Invite only" : "Open"],
+    startingLife: input.startingLife, password: input.password, description: input.description.trim(), bracket: input.bracket,
+    tags: [input.format === "Commander" ? "Commander" : "Constructed", `Bracket ${input.bracket}`, input.privacy === "private" ? "Invite only" : "Open"],
     status: "waiting", players: [lobbyPlayer(user, true)],
     messages: [{ id: id("message"), author: "NovaTable", text: "Lobby created. Choose a deck and ready up.", createdAt: Date.now() }],
     createdAt: Date.now()
@@ -275,7 +275,7 @@ export function postLobbyMessage(lobbyId: string, author: string, text: string):
   });
 }
 
-export function updateLobbySettings(lobbyId: string, hostId: string, patch: Partial<Pick<Lobby, "name" | "privacy" | "maxPlayers" | "spectatorsAllowed" | "startingLife" | "password" | "description">>): Lobby {
+export function updateLobbySettings(lobbyId: string, hostId: string, patch: Partial<Pick<Lobby, "name" | "privacy" | "maxPlayers" | "spectatorsAllowed" | "startingLife" | "password" | "description" | "bracket">>): Lobby {
   return updateLobby(lobbyId, (lobby) => {
     if (lobby.hostId !== hostId) throw new Error("Only the host can change lobby settings.");
     Object.assign(lobby, patch);
@@ -312,6 +312,7 @@ export function startLobby(lobbyId: string, hostId: string): Lobby {
     if (lobby.players.length !== lobby.maxPlayers || lobby.players.some((player) => !player.ready))
       throw new Error("Fill every seat and make sure every player is ready.");
     lobby.status = "in-game";
+    lobby.gameSeed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
   });
 }
 

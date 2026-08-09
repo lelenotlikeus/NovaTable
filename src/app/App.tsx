@@ -13,6 +13,7 @@ interface ActiveGame {
   startingLife: number;
   lobbyName: string;
   gameId: string;
+  seed: number;
 }
 
 export function App() {
@@ -30,7 +31,7 @@ export function App() {
       ? <CommanderBoard {...game} onLeave={() => setGame(null)} />
       : <PlatformApp user={user} onLogout={() => { logoutAccount(); setUser(null); }}
           onUserUpdated={setUser}
-          onStartGame={(players, startingLife, lobbyName, gameId) => setGame({ players, startingLife, lobbyName, gameId })} />;
+          onStartGame={(players, startingLife, lobbyName, gameId, seed) => setGame({ players, startingLife, lobbyName, gameId, seed })} />;
 
   return <>{content}{cardSetupOpen && <CardDatabaseSetup onComplete={() => setCardSetupOpen(false)} onDismiss={() => setCardSetupOpen(false)} />}</>;
 }

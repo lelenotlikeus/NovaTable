@@ -7,6 +7,7 @@ use cockatrice::{
     ServerProfile,
 };
 use tauri::State;
+use tauri_plugin_updater::UpdaterExt;
 
 #[tauri::command]
 async fn probe_cockatrice(
@@ -162,6 +163,18 @@ async fn cockatrice_protocol_self_test() -> Result<ProbeResult, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let Ok(updater) = handle.updater() else { return };
+                let Ok(Some(update)) = updater.check().await else { return };
+                if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
+                    handle.restart();
+                }
+            });
+            Ok(())
+        })
         .manage(CockatriceConnectionState::default())
         .invoke_handler(tauri::generate_handler![
             probe_cockatrice,

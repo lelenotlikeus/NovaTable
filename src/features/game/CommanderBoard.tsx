@@ -9,7 +9,7 @@ import {
 } from "react";
 import {
   Archive, ChevronRight, CircleDot, CopyPlus, Eye, Hand, Layers3,
-  Minus, Plus, RotateCcw, Shuffle, Skull, Sparkles, Swords, X, Dices, Coins, Send
+  Minus, Plus, RotateCcw, Shuffle, Skull, Sparkles, X, Dices, Coins, Send
 } from "lucide-react";
 import {
   cardTextShortcuts,
@@ -29,7 +29,7 @@ import {
 } from "../../domain/commander/types";
 import { CardArtworkPicker, useCardRecord } from "../cards/CardArtwork";
 import { FullscreenButton } from "../shell/FullscreenButton";
-import { gameActions, remoteApiEnabled, sendGameAction } from "../../infrastructure/remoteLobby";
+import { gameActions, remoteApiEnabled, sendGameAction, submitHonor } from "../../infrastructure/remoteLobby";
 
 interface CardDrag {
   cardId: string;
@@ -45,7 +45,7 @@ interface CardDrag {
 
 interface CardMenuState { cardId: string; x: number; y: number }
 interface ZoneMenuState { zone: "library" | "hand" | "graveyard" | "exile"; x: number; y: number }
-interface ViewedZoneState { playerId: string; zone: ZoneMenuState["zone"]; limit?: number }
+interface ViewedZoneState { playerId: string; zone: ZoneMenuState["zone"]; cardIds?: string[] }
 interface ArrowDraft { from: CommanderTarget; pointerId: number; startX: number; startY: number; clientX: number; clientY: number; started: boolean }
 interface GamePromptField { key: string; label: string; value?: string; type?: "text" | "number"; min?: number; max?: number; multiline?: boolean; required?: boolean; options?: Array<{ value: string; label: string }> }
 interface GamePromptConfig { title: string; description?: string; fields: GamePromptField[]; onSubmit: (values: Record<string, string>) => void }
@@ -64,18 +64,20 @@ export function CommanderBoard({
   startingLife,
   lobbyName,
   gameId,
+  seed,
   onLeave
 }: {
   players: GameSetupPlayer[];
   startingLife: number;
   lobbyName: string;
   gameId?: string;
+  seed?: number;
   onLeave: () => void;
 }) {
   const [state, dispatch] = useReducer(
     commanderGameReducer,
     undefined,
-    () => createCommanderGame(players, startingLife)
+    () => createCommanderGame(players, startingLife, seed)
   );
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [pinnedCardId, setPinnedCardId] = useState<string | null>(null);
@@ -83,11 +85,12 @@ export function CommanderBoard({
   const [zoneMenu, setZoneMenu] = useState<ZoneMenuState | null>(null);
   const [viewedZone, setViewedZone] = useState<ViewedZoneState | null>(null);
   const [gamePrompt, setGamePrompt] = useState<GamePromptConfig | null>(null);
-  const [artworkCardName, setArtworkCardName] = useState<string | null>(null);
+  const [artworkCardId, setArtworkCardId] = useState<string | null>(null);
   const [dragVisual, setDragVisual] = useState<CardDrag | null>(null);
   const [arrowDraft, setArrowDraft] = useState<ArrowDraft | null>(null);
   const [dropZone, setDropZone] = useState<CommanderZone | null>(null);
   const [chatMessage, setChatMessage] = useState("");
+  const [honorOpen, setHonorOpen] = useState(false);
   const battlefieldRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<CardDrag | null>(null);
   const arrowRef = useRef<ArrowDraft | null>(null);
@@ -147,7 +150,7 @@ export function CommanderBoard({
   }
 
   function startDrag(card: CommanderCardState, event: PointerEvent<HTMLElement>) {
-    if (event.button !== 0 || card.ownerId !== localId) return;
+    if (event.button !== 0 || card.controllerId !== localId) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const drag: CardDrag = {
       cardId: card.id,
@@ -237,7 +240,11 @@ export function CommanderBoard({
 
   function lookAtTop() {
     if (!localLibrary.length) return;
-    setGamePrompt({ title: "Look at top cards", description: "Use this for scry, surveil and manual library effects.", fields: [{ key: "count", label: "Number of cards", value: "1", type: "number", min: 1, max: localLibrary.length }], onSubmit: ({ count }) => setViewedZone({ playerId: localId, zone: "library", limit: Number(count) }) });
+    setGamePrompt({ title: "Look at top cards", description: "Use this for scry, surveil and manual library effects.", fields: [{ key: "count", label: "Number of cards", value: "1", type: "number", min: 1, max: localLibrary.length }], onSubmit: ({ count }) => setViewedZone({ playerId: localId, zone: "library", cardIds: localLibrary.slice(0, Number(count)).map((card) => card.id) }) });
+  }
+
+  function millCards() {
+    setGamePrompt({ title: "Mill cards", fields: [{ key: "count", label: "Number of cards", value: "1", type: "number", min: 1, max: localLibrary.length }], onSubmit: ({ count }) => action({ type: "MILL", playerId: localId, count: Number(count) }) });
   }
 
   function mulligan() {
@@ -304,24 +311,24 @@ export function CommanderBoard({
   const viewedCards = viewedZone ? (() => {
     const cards = cardsInZone(state, viewedZone.playerId, viewedZone.zone);
     const ordered = viewedZone.zone === "graveyard" || viewedZone.zone === "exile" ? [...cards].reverse() : cards;
-    return viewedZone.limit ? ordered.slice(0, viewedZone.limit) : ordered;
+    return viewedZone.cardIds ? viewedZone.cardIds.map((id) => state.cards[id]).filter((card): card is CommanderCardState => Boolean(card && card.zone === viewedZone.zone)) : ordered;
   })() : [];
 
   return <main className={`commander-screen ${dragVisual?.started ? "is-dragging-card" : ""} ${arrowDraft?.started ? "is-drawing-arrow" : ""}`} style={{ "--nt-green": state.players[localId].accentColor ?? "#62e6bb" } as CSSProperties} onPointerDown={startArrow} onPointerMove={moveArrow} onPointerUp={finishArrow} onPointerCancel={cancelArrow} onContextMenu={(event) => { if ((event.target as HTMLElement).closest("[data-card-id], [data-player-target]")) event.preventDefault(); }}>
     <header className="game-topbar">
       <div><img className="brand-logo" src="/novatable-logo.svg" alt="NovaTable" /><div><strong>{lobbyName}</strong><span>Commander · 4 players</span></div></div>
       <div className="turn-status"><span>Turn {state.turn}</span><strong>{state.players[state.activePlayerId].name}</strong><i>{state.phase.replace("-", " ")}</i></div>
-      <div className="game-window-actions"><FullscreenButton /><button className="secondary-button" onClick={onLeave}><X size={16} />Leave game</button></div>
+      <div className="game-window-actions"><FullscreenButton /><button className="secondary-button" onClick={() => gameId && remoteApiEnabled ? setHonorOpen(true) : onLeave()}><X size={16} />Leave game</button></div>
     </header>
 
     <section className="commander-table">
       <div className="opponents-grid">
-        {opponents.map((playerId) => <OpponentBoard key={playerId} state={state} playerId={playerId} dispatch={action} onHover={setHoveredCardId} onViewZone={(zone) => setViewedZone({ playerId, zone })} />)}
+        {opponents.map((playerId) => <OpponentBoard key={playerId} state={state} playerId={playerId} dispatch={action} onHover={setHoveredCardId} onContext={showContext} onViewZone={(zone) => setViewedZone({ playerId, zone })} />)}
       </div>
 
       <div className={`shared-center ${stackCards.length ? "has-stack" : ""}`}>
         <div className={`stack-tray ${dropZone === "stack" ? "is-drop-target" : ""}`} data-drop-zone="stack"><span>Stack {stackCards.length || ""}</span>{stackCards.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} compact dragging={dragVisual?.started && dragVisual.cardId === card.id} {...(card.ownerId === localId ? cardInteractions(card) : { onHover: (hovered: boolean) => setHoveredCardId(hovered ? card.id : null) })} />)}</div>
-        <div className="phase-track">{commanderPhases.map((phase) => <button className={state.phase === phase ? "is-current" : ""} key={phase} onClick={() => action({ type: "SET_PHASE", phase })}>{phase.replace("-", " ")}</button>)}</div>
+        <div className="phase-track">{commanderPhases.map((phase) => <button className={state.phase === phase ? "is-current" : ""} disabled={state.activePlayerId !== localId} key={phase} onClick={() => action({ type: "SET_PHASE", phase })}>{phase.replaceAll("-", " ")}</button>)}</div>
       </div>
 
       <section className="local-board">
@@ -353,25 +360,26 @@ export function CommanderBoard({
       <CardPreview card={previewCard} canPeek={previewCard?.ownerId === localId} pinned={Boolean(pinnedCardId && previewCardId === pinnedCardId)} onUnpin={() => setPinnedCardId(null)} />
       <section className="table-tools">
         <header>Quick actions</header>
-        <div><button onClick={() => action({ type: "DRAW_CARD", playerId: localId })}><Hand size={15} />Draw</button><button onClick={() => action({ type: "DRAW_CARD", playerId: localId, count: 7 })}><Hand size={15} />Draw 7</button><button onClick={createCustomToken}><CopyPlus size={15} />Create token</button><button onClick={() => action({ type: "MILL", playerId: localId, count: 1 })}><Skull size={15} />Mill 1</button><button onClick={lookAtTop}><Eye size={15} />Look / Scry X</button><button onClick={() => action({ type: "SHUFFLE_LIBRARY", playerId: localId, seed: Date.now() })}><Shuffle size={15} />Shuffle</button><button onClick={mulligan}><RotateCcw size={15} />Mulligan</button><button onClick={() => action({ type: "UNTAP_ALL", playerId: localId })}><Sparkles size={15} />Untap all</button><button onClick={rollDie}><Dices size={15} />Roll die</button><button onClick={() => action({ type: "FLIP_COIN", playerId: localId, result: Math.random() < .5 ? "heads" : "tails" })}><Coins size={15} />Flip coin</button><button onClick={() => action({ type: "CLEAR_ARROWS" })}><X size={15} />Clear arrows</button><button className="next-phase" onClick={() => action({ type: "NEXT_PHASE" })}>Next phase <ChevronRight size={16} /></button></div>
+        <div><button onClick={() => action({ type: "DRAW_CARD", playerId: localId })}><Hand size={15} />Draw</button><button onClick={() => action({ type: "DRAW_CARD", playerId: localId, count: 7 })}><Hand size={15} />Draw 7</button><button onClick={createCustomToken}><CopyPlus size={15} />Create token</button><button onClick={millCards}><Skull size={15} />Mill X</button><button onClick={lookAtTop}><Eye size={15} />Look / Scry X</button><button onClick={() => action({ type: "SHUFFLE_LIBRARY", playerId: localId, seed: Date.now() })}><Shuffle size={15} />Shuffle</button><button onClick={mulligan}><RotateCcw size={15} />Mulligan</button><button onClick={() => action({ type: "UNTAP_ALL", playerId: localId })}><Sparkles size={15} />Untap all</button><button onClick={rollDie}><Dices size={15} />Roll die</button><button onClick={() => action({ type: "FLIP_COIN", playerId: localId, result: Math.random() < .5 ? "heads" : "tails" })}><Coins size={15} />Flip coin</button><button onClick={() => action({ type: "CLEAR_ARROWS" })}><X size={15} />Clear arrows</button><button className="next-phase" disabled={state.activePlayerId !== localId} title={state.activePlayerId !== localId ? `Waiting for ${state.players[state.activePlayerId].name}` : "Advance phase"} onClick={() => action({ type: "NEXT_PHASE" })}>Next phase <ChevronRight size={16} /></button></div>
       </section>
       <section className="game-log"><header><CircleDot size={14} /><strong>Game log & chat</strong></header><div>{[...state.log].reverse().slice(0, 30).map((entry) => <p key={entry.id}>{entry.message}</p>)}</div><form onSubmit={(event) => { event.preventDefault(); action({ type: "CHAT_MESSAGE", playerId: localId, text: chatMessage }); setChatMessage(""); }}><input aria-label="Game chat message" value={chatMessage} onChange={(event) => setChatMessage(event.target.value)} placeholder="Message the table" maxLength={500} /><button aria-label="Send game message"><Send size={13} /></button></form></section>
     </aside>
 
-    {cardMenu && state.cards[cardMenu.cardId] && <CardContextMenu card={state.cards[cardMenu.cardId]} battlefield={battlefieldCards} isCommander={state.players[state.cards[cardMenu.cardId].ownerId].commanderCardId === cardMenu.cardId} dispatch={action} position={cardMenu} onPrompt={setGamePrompt} onChooseArtwork={() => { setArtworkCardName(state.cards[cardMenu.cardId].name); setCardMenu(null); }} onClose={() => setCardMenu(null)} />}
+    {cardMenu && state.cards[cardMenu.cardId] && <CardContextMenu card={state.cards[cardMenu.cardId]} battlefield={battlefieldCards} players={state.players} isCommander={state.players[state.cards[cardMenu.cardId].ownerId].commanderCardId === cardMenu.cardId} dispatch={action} position={cardMenu} onPrompt={setGamePrompt} onChooseArtwork={() => { setArtworkCardId(cardMenu.cardId); setCardMenu(null); }} onClose={() => setCardMenu(null)} />}
     {zoneMenu && <ZoneContextMenu zone={zoneMenu.zone} count={cardsInZone(state, localId, zoneMenu.zone).length} topCard={zoneMenu.zone === "library" ? localLibrary[0] : cardsInZone(state, localId, zoneMenu.zone).at(-1)} playerId={localId} dispatch={action} position={zoneMenu} onPrompt={setGamePrompt} onView={() => { setViewedZone({ playerId: localId, zone: zoneMenu.zone }); setZoneMenu(null); }} onClose={() => setZoneMenu(null)} />}
     {viewedZone && <aside className="zone-browser" role="dialog" aria-label={`${zoneLabel(viewedZone.zone)} cards`}>
-      <header><div><span className="kicker">{viewedZone.playerId === localId ? "Your cards" : state.players[viewedZone.playerId].name}</span><strong>{viewedZone.limit ? `Top ${viewedZone.limit} · ` : ""}{zoneLabel(viewedZone.zone)}</strong><small>{viewedCards.length} card{viewedCards.length === 1 ? "" : "s"} · {viewedZone.playerId === localId ? "drag or right-click any card" : "public zone"}</small></div><button onClick={() => setViewedZone(null)} aria-label="Close zone viewer"><X size={17} /></button></header>
+      <header><div><span className="kicker">{viewedZone.playerId === localId ? "Your cards" : state.players[viewedZone.playerId].name}</span><strong>{viewedZone.cardIds ? `Top ${viewedZone.cardIds.length} · ` : ""}{zoneLabel(viewedZone.zone)}</strong><small>{viewedCards.length} card{viewedCards.length === 1 ? "" : "s"} · {viewedZone.playerId === localId ? "drag or right-click any card" : "public zone"}</small></div><button onClick={() => setViewedZone(null)} aria-label="Close zone viewer"><X size={17} /></button></header>
       <div>{viewedCards.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} dragging={dragVisual?.started && dragVisual.cardId === card.id} {...(viewedZone.playerId === localId ? cardInteractions(card) : { onHover: (hovered: boolean) => setHoveredCardId(hovered ? card.id : null) })} />)}{!viewedCards.length && <p>This zone is empty.</p>}</div>
     </aside>}
     {dragVisual?.started && state.cards[dragVisual.cardId] && <div className="drag-card-preview" style={{ left: dragVisual.clientX - dragVisual.centerOffsetX, top: dragVisual.clientY - dragVisual.centerOffsetY }}><CommanderCard card={state.cards[dragVisual.cardId].zone === "library" && !state.cards[dragVisual.cardId].revealed ? { ...state.cards[dragVisual.cardId], faceDown: true } : state.cards[dragVisual.cardId]} selected={false} previewOnly /></div>}
-    {artworkCardName && <CardArtworkPicker cardName={artworkCardName} onClose={() => setArtworkCardName(null)} />}
+    {artworkCardId && state.cards[artworkCardId] && <CardArtworkPicker cardName={state.cards[artworkCardId].name} onSelect={(printing) => action({ type: "SET_CARD_ARTWORK", cardId: artworkCardId, artworkUrl: printing?.imageUrl ?? null, backArtworkUrl: printing?.otherFaceImageUrl })} onClose={() => setArtworkCardId(null)} />}
     {gamePrompt && <GamePromptModal config={gamePrompt} onClose={() => setGamePrompt(null)} />}
+    {honorOpen && <div className="game-prompt-backdrop" role="presentation"><section className="game-prompt honor-prompt" role="dialog" aria-modal="true" aria-label="Award Honor"><header><div><span className="kicker">End of game</span><strong>Award Honor</strong><p>Who made this game especially enjoyable? You cannot vote for yourself.</p></div></header><section>{state.playerOrder.filter((playerId) => playerId !== localId && !playerId.startsWith("bot-")).map((playerId) => <button key={playerId} onClick={() => { void submitHonor(gameId!, playerId).finally(onLeave); }}><span className="avatar">{state.players[playerId].avatar}</span><strong>{state.players[playerId].name}</strong><small>Give +1 Honor</small></button>)}</section><footer><button className="secondary-button" onClick={onLeave}>Skip and leave</button></footer></section></div>}
     <ArrowLayer arrows={state.arrows} attachments={Object.values(state.cards).filter((card) => card.attachedTo).map((card) => ({ id: `attachment-${card.id}`, from: { kind: "card", id: card.id }, to: { kind: "card", id: card.attachedTo! } }))} draft={arrowDraft} onRemove={(arrowId) => action({ type: "REMOVE_ARROW", arrowId })} />
   </main>;
 }
 
-function OpponentBoard({ state, playerId, dispatch, onHover, onViewZone }: { state: CommanderGameState; playerId: string; dispatch: (action: CommanderGameAction) => void; onHover: (cardId: string | null) => void; onViewZone: (zone: "graveyard" | "exile") => void }) {
+function OpponentBoard({ state, playerId, dispatch, onHover, onContext, onViewZone }: { state: CommanderGameState; playerId: string; dispatch: (action: CommanderGameAction) => void; onHover: (cardId: string | null) => void; onContext: (card: CommanderCardState, event: MouseEvent<HTMLElement>) => void; onViewZone: (zone: "graveyard" | "exile") => void }) {
   const player = state.players[playerId];
   const battlefield = cardsInZone(state, playerId, "battlefield");
   const commander = state.cards[player.commanderCardId];
@@ -382,8 +390,8 @@ function OpponentBoard({ state, playerId, dispatch, onHover, onViewZone }: { sta
   return <section className={`opponent-board ${state.activePlayerId === playerId ? "is-active" : ""}`}>
     <PlayerHud state={state} playerId={playerId} dispatch={dispatch} />
     <div className="opponent-public">
-      <div className="opponent-commander">{commander.zone === "commander" && <CommanderCard card={commander} selected={false} compact onHover={(hovered) => onHover(hovered ? commander.id : null)} />}<span>Tax {player.commanderTax}</span></div>
-      <div className="opponent-battlefield">{!battlefield.length && <span className="opponent-battlefield-empty">Battlefield</span>}{battlefield.map((card, index) => <CommanderCard key={card.id} card={card} selected={false} compact freePosition={[card.battlefieldX ?? 18 + index * 18, card.battlefieldY ?? 50]} onHover={(hovered) => onHover(hovered ? card.id : null)} />)}</div>
+      <div className="opponent-commander">{commander.zone === "commander" && <CommanderCard card={commander} selected={false} compact onHover={(hovered) => onHover(hovered ? commander.id : null)} onContext={(event) => onContext(commander, event)} />}<span>Tax {player.commanderTax}</span></div>
+      <div className="opponent-battlefield">{!battlefield.length && <span className="opponent-battlefield-empty">Battlefield</span>}{battlefield.map((card, index) => <CommanderCard key={card.id} card={card} selected={false} compact freePosition={[card.battlefieldX ?? 18 + index * 18, card.battlefieldY ?? 50]} onHover={(hovered) => onHover(hovered ? card.id : null)} onContext={(event) => onContext(card, event)} onDouble={() => dispatch({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })} />)}</div>
       <div className="hidden-hand" title={`${hand.length} cards in hand`}>{revealedHand.length ? <CommanderCard card={revealedHand.at(-1)!} selected={false} compact onHover={(hovered) => onHover(hovered ? revealedHand.at(-1)!.id : null)} /> : Array.from({ length: Math.min(hand.length, 7) }, (_, index) => <i key={index}><img src="/magic-card-back.png" alt="" /></i>)}<span>{hand.length}{revealedHand.length ? ` · ${revealedHand.length} shown` : ""}</span></div>
     </div>
     <footer><button title={revealedLibraryTop?.name ?? "Library"} onMouseEnter={() => revealedLibraryTop && onHover(revealedLibraryTop.id)} onMouseLeave={() => revealedLibraryTop && onHover(null)}><Layers3 size={13} />{library.length}{revealedLibraryTop && <b>{revealedLibraryTop.name}</b>}</button><button onClick={() => onViewZone("graveyard")}><Archive size={13} />{cardsInZone(state, playerId, "graveyard").length}</button><button onClick={() => onViewZone("exile")}><Eye size={13} />{cardsInZone(state, playerId, "exile").length}</button></footer>
@@ -392,7 +400,7 @@ function OpponentBoard({ state, playerId, dispatch, onHover, onViewZone }: { sta
 
 function PlayerHud({ state, playerId, dispatch, local = false }: { state: CommanderGameState; playerId: string; dispatch: (action: CommanderGameAction) => void; local?: boolean }) {
   const player = state.players[playerId];
-  return <header className={`player-hud ${local ? "is-local" : ""}`} data-player-target={playerId}><span className={`avatar ${player.avatarImage ? "has-image" : ""}`} style={{ borderColor: player.accentColor }}>{player.avatarImage ? <img src={player.avatarImage} alt="" /> : player.avatar}</span><div className="player-hud__name"><strong>{player.name}</strong><span>{state.activePlayerId === playerId ? "Active player" : local ? "You" : "Connected"}</span></div><div className={`life-stepper ${local ? "" : "is-readonly"}`}>{local && <button aria-label="Lose one life" onClick={() => dispatch({ type: "CHANGE_LIFE", playerId, delta: -1 })}><Minus size={13} /></button>}<strong>{player.life}</strong>{local && <button aria-label="Gain one life" onClick={() => dispatch({ type: "CHANGE_LIFE", playerId, delta: 1 })}><Plus size={13} /></button>}<span>Life</span></div><div className="poison-stepper"><Skull size={13} /><button onClick={() => dispatch({ type: "CHANGE_POISON", playerId, delta: -1 })}>−</button><strong>{player.poison}</strong><button onClick={() => dispatch({ type: "CHANGE_POISON", playerId, delta: 1 })}>+</button></div><div className="damage-strip">{Object.entries(player.commanderDamage).map(([sourceId, value]) => <span key={sourceId} title={`Commander damage from ${state.players[sourceId].name}`}><button onClick={() => dispatch({ type: "CHANGE_COMMANDER_DAMAGE", playerId, sourcePlayerId: sourceId, delta: -1 })}>−</button><b><Swords size={10} />{value}</b><button onClick={() => dispatch({ type: "CHANGE_COMMANDER_DAMAGE", playerId, sourcePlayerId: sourceId, delta: 1 })}>+</button></span>)}</div></header>;
+  return <header className={`player-hud ${local ? "is-local" : ""}`} data-player-target={playerId}><span className={`avatar ${player.avatarImage ? "has-image" : ""}`} style={{ borderColor: player.accentColor }}>{player.avatarImage ? <img src={player.avatarImage} alt="" /> : player.avatar}</span><div className="player-hud__name"><strong>{player.name}</strong><span>{state.activePlayerId === playerId ? "Active player" : local ? "You" : "Connected"}</span></div><div className={`life-stepper ${local ? "" : "is-readonly"}`}>{local && <button aria-label="Lose one life" onClick={() => dispatch({ type: "CHANGE_LIFE", playerId, delta: -1 })}><Minus size={13} /></button>}<strong>{player.life}</strong>{local && <button aria-label="Gain one life" onClick={() => dispatch({ type: "CHANGE_LIFE", playerId, delta: 1 })}><Plus size={13} /></button>}<span>Life</span></div><div className="poison-stepper"><Skull size={13} /><button onClick={() => dispatch({ type: "CHANGE_POISON", playerId, delta: -1 })}>−</button><strong>{player.poison}</strong><button onClick={() => dispatch({ type: "CHANGE_POISON", playerId, delta: 1 })}>+</button></div><div className="damage-strip">{Object.entries(player.commanderDamage).map(([sourceId, value]) => <span key={sourceId} title={`Commander damage from ${state.players[sourceId].name}`}><button aria-label={`Remove commander damage from ${state.players[sourceId].name}`} onClick={() => dispatch({ type: "CHANGE_COMMANDER_DAMAGE", playerId, sourcePlayerId: sourceId, delta: -1 })}>−</button><b><i className="damage-source" style={{ borderColor: state.players[sourceId].accentColor }}>{state.players[sourceId].avatar}</i>{value}</b><button aria-label={`Add commander damage from ${state.players[sourceId].name}`} onClick={() => dispatch({ type: "CHANGE_COMMANDER_DAMAGE", playerId, sourcePlayerId: sourceId, delta: 1 })}>+</button></span>)}</div></header>;
 }
 
 function ZoneButton({ icon, label, count, zone, active, topCard, onHover, onClick, onContext, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }: { icon: React.ReactNode; label: string; count: number; zone: CommanderZone; active: boolean; topCard?: CommanderCardState; onHover?: (cardId: string | null) => void; onClick?: () => void; onContext?: (event: MouseEvent<HTMLButtonElement>) => void } & Pick<CommanderCardProps, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel">) {
@@ -460,6 +468,7 @@ interface CommanderCardProps {
 
 function CommanderCard({ card, selected, dragging = false, compact = false, hand = false, previewOnly = false, freePosition, onHover, onClick, onDouble, onContext, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }: CommanderCardProps) {
   const record = useCardRecord(card.name);
+  const imageUrl = card.transformed ? card.backArtworkUrl ?? record?.otherFaceImageUrl : card.artworkUrl ?? record?.imageUrl;
   const basePower = card.power ?? numericStat(record?.power);
   const baseToughness = card.toughness ?? numericStat(record?.toughness);
   const style = {
@@ -487,7 +496,7 @@ function CommanderCard({ card, selected, dragging = false, compact = false, hand
     aria-label={`${card.name}${card.tapped ? ", tapped" : ""}`}
   >
     <div className={`commander-card ${card.tapped ? "is-tapped" : ""}`}>
-      {card.faceDown ? <img className="commander-card__image" src="/magic-card-back.png" alt="Face-down card" draggable={false} /> : record?.imageUrl ? <img className="commander-card__image" src={record.imageUrl} alt={card.name} draggable={false} /> : <><div className="commander-card__name">{card.name}</div><div className="commander-card__art"><i /><span>{card.token ? "TOKEN" : card.zone === "commander" ? "COMMANDER" : "MAGIC"}</span></div><div className="commander-card__type">{record?.typeLine || fallbackType(card)}</div></>}
+      {card.faceDown ? <img className="commander-card__image" src="/magic-card-back.png" alt="Face-down card" draggable={false} /> : imageUrl ? <img className="commander-card__image" src={imageUrl} alt={card.transformed ? record?.otherFaceName ?? card.name : card.name} draggable={false} /> : <><div className="commander-card__name">{card.name}</div><div className="commander-card__art"><i /><span>{card.token ? "TOKEN" : card.zone === "commander" ? "COMMANDER" : "MAGIC"}</span></div><div className="commander-card__type">{record?.typeLine || fallbackType(card)}</div></>}
       {card.counters > 0 && <b className="card-counters">+1/+1 ×{card.counters}</b>}
       {Object.keys(card.namedCounters).length > 0 && <span className="card-markers">{Object.entries(card.namedCounters).map(([name, value]) => `${name} ${value}`).join(" · ")}</span>}
       {card.annotation && <span className="card-note" title={card.annotation}>✎ {card.annotation}</span>}
@@ -499,16 +508,17 @@ function CommanderCard({ card, selected, dragging = false, compact = false, hand
 
 function CardPreview({ card, canPeek, pinned, onUnpin }: { card: CommanderCardState | null; canPeek: boolean; pinned: boolean; onUnpin: () => void }) {
   const record = useCardRecord(card?.name ?? "");
+  const imageUrl = card?.transformed ? card.backArtworkUrl ?? record?.otherFaceImageUrl : card?.artworkUrl ?? record?.imageUrl;
   return <section className="card-preview-panel">
     <header><div><span>Card preview</span>{card && <strong>{card.name}</strong>}</div>{pinned && <button onClick={onUnpin} title="Unpin preview"><X size={15} /></button>}</header>
     <div className="card-preview-stage">
-      {card ? card.faceDown && !canPeek ? <img src="/magic-card-back.png" alt="Face-down card" /> : record?.imageUrl ? <img src={record.imageUrl} alt={card.name} /> : <div className="card-preview-fallback" style={{ "--card-a": card.palette[0], "--card-b": card.palette[1] } as CSSProperties}><strong>{card.name}</strong><span>{record?.manaCost}</span><i /> <b>{record?.typeLine || fallbackType(card)}</b><p>{record?.oracleText || "Card artwork becomes available after installing the card library."}</p></div> : <div className="card-preview-empty"><img src="/magic-card-back.png" alt="Magic card back" /><p>Hover a visible card to preview it</p><small>Click a card to pin it here</small></div>}
+      {card ? card.faceDown && !canPeek ? <img src="/magic-card-back.png" alt="Face-down card" /> : imageUrl ? <img src={imageUrl} alt={card.transformed ? record?.otherFaceName ?? card.name : card.name} /> : <div className="card-preview-fallback" style={{ "--card-a": card.palette[0], "--card-b": card.palette[1] } as CSSProperties}><strong>{card.name}</strong><span>{record?.manaCost}</span><i /> <b>{record?.typeLine || fallbackType(card)}</b><p>{record?.oracleText || "Card artwork becomes available after installing the card library."}</p></div> : <div className="card-preview-empty"><img src="/magic-card-back.png" alt="Magic card back" /><p>Hover a visible card to preview it</p><small>Click a card to pin it here</small></div>}
     </div>
     {card && <footer><span>{record?.typeLine || fallbackType(card)}</span>{record?.manaCost && <b>{record.manaCost}</b>}{card.annotation && <em>✎ {card.annotation}</em>}</footer>}
   </section>;
 }
 
-function CardContextMenu({ card, battlefield, isCommander, dispatch, position, onPrompt, onChooseArtwork, onClose }: { card: CommanderCardState; battlefield: CommanderCardState[]; isCommander: boolean; dispatch: (action: CommanderGameAction) => void; position: CardMenuState; onPrompt: (prompt: GamePromptConfig) => void; onChooseArtwork: () => void; onClose: () => void }) {
+function CardContextMenu({ card, battlefield, players, isCommander, dispatch, position, onPrompt, onChooseArtwork, onClose }: { card: CommanderCardState; battlefield: CommanderCardState[]; players: CommanderGameState["players"]; isCommander: boolean; dispatch: (action: CommanderGameAction) => void; position: CardMenuState; onPrompt: (prompt: GamePromptConfig) => void; onChooseArtwork: () => void; onClose: () => void }) {
   const record = useCardRecord(card.name);
   const basePower = card.power ?? numericStat(record?.power);
   const baseToughness = card.toughness ?? numericStat(record?.toughness);
@@ -531,6 +541,14 @@ function CardContextMenu({ card, battlefield, isCommander, dispatch, position, o
     onPrompt({ title: "Set named counter", description: "Use 0 to remove the counter.", fields: [{ key: "name", label: "Counter name", value: "charge" }, { key: "value", label: "Amount", value: "1", type: "number", min: 0 }], onSubmit: ({ name, value }) => dispatch({ type: "SET_NAMED_COUNTER", cardId: card.id, name, value: Number(value) }) });
     onClose();
   }
+  function setCounters() {
+    onPrompt({ title: "Set +1/+1 counters", description: card.name, fields: [{ key: "value", label: "Amount", value: String(card.counters), type: "number", min: 0 }], onSubmit: ({ value }) => dispatch({ type: "ADD_COUNTER", cardId: card.id, delta: Number(value) - card.counters }) });
+    onClose();
+  }
+  function giveControl() {
+    onPrompt({ title: "Give control", description: card.name, fields: [{ key: "playerId", label: "New controller", options: Object.values(players).filter((player) => player.id !== card.controllerId).map((player) => ({ value: player.id, label: player.name })) }], onSubmit: ({ playerId }) => dispatch({ type: "CHANGE_CONTROLLER", cardId: card.id, playerId }) });
+    onClose();
+  }
   function attach() {
     const targets = battlefield.filter((candidate) => candidate.id !== card.id);
     if (!targets.length) return;
@@ -550,12 +568,15 @@ function CardContextMenu({ card, battlefield, isCommander, dispatch, position, o
     <button onClick={() => run({ type: "MOVE_CARD", cardId: card.id, zone: "library", placement: "bottom" })}>Bottom of library</button>
     {isCommander && card.zone !== "commander" && <button onClick={() => run({ type: "MOVE_CARD", cardId: card.id, zone: "commander" })}>Return to command zone</button>}
     <button onClick={() => run({ type: "TOGGLE_FACE_DOWN", cardId: card.id })}>{card.faceDown ? "Turn face up" : "Turn face down"}</button>
+    {record?.otherFaceImageUrl && <button onClick={() => run({ type: "TOGGLE_TRANSFORM", cardId: card.id })}>{card.transformed ? `Show front · ${card.name}` : `Transform · ${record.otherFaceName ?? "back face"}`}</button>}
     <button onClick={() => run({ type: "CLONE_CARD", cardId: card.id })}>Clone / create copy</button>
     {card.zone === "battlefield" && <button onClick={card.attachedTo ? () => run({ type: "ATTACH_CARD", cardId: card.id, targetCardId: null }) : attach}>{card.attachedTo ? "Unattach" : "Attach to…"}</button>}
+    {card.zone === "battlefield" && <button onClick={giveControl}>Give control to…</button>}
     <button onClick={() => { onPrompt({ title: "Card annotation", description: card.name, fields: [{ key: "annotation", label: "Annotation", value: card.annotation, multiline: true, required: false }], onSubmit: ({ annotation }) => dispatch({ type: "SET_ANNOTATION", cardId: card.id, annotation }) }); onClose(); }}>Set annotation</button>
     <button onClick={() => run({ type: card.revealed ? "HIDE_CARD" : "REVEAL_CARD", cardId: card.id })}>{card.revealed ? "Hide" : "Reveal"}</button>
     <button onClick={onChooseArtwork}>Choose artwork / edition</button>
     <div className="context-counter"><span>Counters</span><button onClick={() => dispatch({ type: "ADD_COUNTER", cardId: card.id, delta: -1 })}><Minus size={13} /></button><b>{card.counters}</b><button onClick={() => dispatch({ type: "ADD_COUNTER", cardId: card.id, delta: 1 })}><Plus size={13} /></button></div>
+    <button onClick={setCounters}>Set +1/+1 counters…</button>
     <button onClick={setNamedCounter}>Set named counter…</button>
     {Object.entries(card.namedCounters).map(([name, value]) => <div className="named-counter-control" key={name}><span>{name}</span><button onClick={() => dispatch({ type: "SET_NAMED_COUNTER", cardId: card.id, name, value: value - 1 })}>−</button><b>{value}</b><button onClick={() => dispatch({ type: "SET_NAMED_COUNTER", cardId: card.id, name, value: value + 1 })}>+</button><button className="remove" onClick={() => dispatch({ type: "SET_NAMED_COUNTER", cardId: card.id, name, value: 0 })}>Remove</button></div>)}
     {basePower !== null && baseToughness !== null && <><div className="context-counter"><span>Temp P/T</span><button onClick={() => dispatch({ type: "MODIFY_POWER_TOUGHNESS", cardId: card.id, power: -1, toughness: 0 })}>P−</button><button onClick={() => dispatch({ type: "MODIFY_POWER_TOUGHNESS", cardId: card.id, power: 1, toughness: 0 })}>P+</button><button onClick={() => dispatch({ type: "MODIFY_POWER_TOUGHNESS", cardId: card.id, power: 0, toughness: -1 })}>T−</button><button onClick={() => dispatch({ type: "MODIFY_POWER_TOUGHNESS", cardId: card.id, power: 0, toughness: 1 })}>T+</button></div><button onClick={setPowerToughness}>Set power / toughness…</button><button onClick={() => run({ type: "RESET_POWER_TOUGHNESS", cardId: card.id })}>Reset power / toughness</button></>}

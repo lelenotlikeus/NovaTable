@@ -3214,3 +3214,17 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .zone-pile > em { max-width: 90%; overflow: hidden; color: #dce5e9; font-size: 8px; font-style: normal; font-weight: 700; line-height: 1.2; text-align: center; text-overflow: ellipsis; }
 [data-theme="light"] .zone-pile > em { color: #344750; }
 .opponent-board > footer button b { max-width: 90px; overflow: hidden; color: var(--nt-green); font-size: inherit; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Beta playtest: keep every battlefield and complete card visible at desktop sizes. */
+.commander-table { grid-template-rows: minmax(270px, 40vh) minmax(34px, auto) minmax(0, 1fr); }
+.commander-screen { --card-size-opponent: clamp(68px, 3.8vw, 84px); }
+.opponent-public { grid-template-columns: calc(var(--card-size-opponent) + 12px) minmax(0, 1fr) 54px; }
+.phase-track { min-width: 0; justify-content: flex-start; overflow-x: auto; scrollbar-width: thin; }
+.phase-track button { flex: 0 0 auto; }
+.phase-track button:disabled, .table-tools button:disabled { cursor: not-allowed; opacity: .38; }
+.zone-browser { width: min(980px, calc(100vw - clamp(286px, 17vw, 330px) - 42px)); max-height: calc(100vh - 94px); }
+.zone-browser .commander-card__image, .artwork-grid img { object-fit: contain; background: #05080b; }
+.damage-source { display: grid; width: 18px; height: 18px; place-items: center; border: 1px solid; border-radius: 50%; color: #eef5f2; font-size: 7px; font-style: normal; }
+@media (max-height: 850px) { .commander-table { grid-template-rows: minmax(235px, 38vh) minmax(32px, auto) minmax(0, 1fr); } }
+.honor-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; }.honor-row > b { color: var(--nt-muted); font-size: 10px; }.honor-row > .person-row { padding: 0; }.honor-row > strong { color: #e1cf8d; font-size: 13px; }
+.honor-prompt > section { display: grid; gap: 8px; }.honor-prompt > section > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--nt-line); border-radius: 9px; color: var(--nt-text); background: rgba(255,255,255,.025); text-align: left; }.honor-prompt > section > button:hover { border-color: var(--nt-green); }.honor-prompt > section > button small { color: #e1cf8d; }
