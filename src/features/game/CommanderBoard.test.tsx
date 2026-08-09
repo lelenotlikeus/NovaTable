@@ -154,6 +154,47 @@ describe("Commander board interactions", () => {
     expect(within(hand).getByRole("button", { name: "Sol Ring" })).toBeInTheDocument();
   });
 
+  it("reveals and directly drags the top card across library, graveyard and exile", () => {
+    render(<CommanderBoard players={players} startingLife={40} lobbyName="Commander Night" onLeave={() => undefined} />);
+    const library = document.querySelector<HTMLElement>('[data-drop-zone="library"]')!;
+    const battlefield = document.querySelector<HTMLElement>('[data-drop-zone="battlefield"]')!;
+    battlefield.getBoundingClientRect = vi.fn(() => battlefieldBounds);
+
+    fireEvent.contextMenu(library, { clientX: 200, clientY: 300 });
+    fireEvent.click(within(screen.getByRole("menu", { name: "Library actions" })).getByRole("button", { name: "Reveal top card" }));
+    expect(library).toHaveTextContent("Sol Ring");
+
+    library.getBoundingClientRect = vi.fn(() => rect(20, 300, 80, 112));
+    library.setPointerCapture = vi.fn();
+    document.elementFromPoint = vi.fn(() => battlefield);
+    fireEvent.pointerDown(library, { button: 0, pointerId: 20, clientX: 60, clientY: 356 });
+    fireEvent.pointerMove(library, { pointerId: 20, clientX: 500, clientY: 300 });
+    fireEvent.pointerUp(library, { pointerId: 20, clientX: 500, clientY: 300 });
+
+    const solRing = within(battlefield).getByRole("button", { name: "Sol Ring" });
+    fireEvent.contextMenu(solRing, { clientX: 500, clientY: 300 });
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: "Graveyard / Sacrifice" }));
+
+    const graveyard = document.querySelector<HTMLElement>('[data-drop-zone="graveyard"]')!;
+    const exile = document.querySelector<HTMLElement>('[data-drop-zone="exile"]')!;
+    graveyard.getBoundingClientRect = vi.fn(() => rect(20, 420, 80, 112));
+    graveyard.setPointerCapture = vi.fn();
+    document.elementFromPoint = vi.fn(() => exile);
+    fireEvent.pointerDown(graveyard, { button: 0, pointerId: 21, clientX: 60, clientY: 476 });
+    fireEvent.pointerMove(graveyard, { pointerId: 21, clientX: 140, clientY: 476 });
+    fireEvent.pointerUp(graveyard, { pointerId: 21, clientX: 140, clientY: 476 });
+    expect(exile).toHaveTextContent("Sol Ring");
+
+    const hand = document.querySelector<HTMLElement>('[data-drop-zone="hand"]')!;
+    exile.getBoundingClientRect = vi.fn(() => rect(120, 420, 80, 112));
+    exile.setPointerCapture = vi.fn();
+    document.elementFromPoint = vi.fn(() => hand);
+    fireEvent.pointerDown(exile, { button: 0, pointerId: 22, clientX: 160, clientY: 476 });
+    fireEvent.pointerMove(exile, { pointerId: 22, clientX: 500, clientY: 700 });
+    fireEvent.pointerUp(exile, { pointerId: 22, clientX: 500, clientY: 700 });
+    expect(within(hand).getByRole("button", { name: "Sol Ring" })).toBeInTheDocument();
+  });
+
   it("moves cards through the stack and exposes the extended tabletop actions", () => {
     renderGame();
     fireEvent.contextMenu(screen.getByRole("button", { name: "Sol Ring" }), { clientX: 500, clientY: 300 });

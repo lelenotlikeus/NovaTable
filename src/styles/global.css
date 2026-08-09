@@ -3209,3 +3209,8 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 [data-theme="light"] .game-prompt textarea { color: var(--nt-text); background: #f5f8fa; }
 [data-theme="light"] .zone-pile { color: #60717c; background: radial-gradient(circle at 50% 38%, rgba(35,145,112,.12), transparent 38%), linear-gradient(145deg, #edf3f4, #dce5e8); box-shadow: 3px 3px 0 #d2dade, 5px 5px 0 rgba(84,103,115,.2), 0 9px 18px rgba(35,49,58,.14); }
 [data-theme="light"] .zone-pile > strong { border-color: #f7fafb; color: white; background: #344750; }
+
+.commander-zone-button { touch-action: none; }
+.zone-pile > em { max-width: 90%; overflow: hidden; color: #dce5e9; font-size: 8px; font-style: normal; font-weight: 700; line-height: 1.2; text-align: center; text-overflow: ellipsis; }
+[data-theme="light"] .zone-pile > em { color: #344750; }
+.opponent-board > footer button b { max-width: 90px; overflow: hidden; color: var(--nt-green); font-size: inherit; text-overflow: ellipsis; white-space: nowrap; }
