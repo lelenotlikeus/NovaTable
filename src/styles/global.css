@@ -2834,7 +2834,7 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .local-zones { --zone-card-size: clamp(58px, 6.2vh, 72px); display: grid; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px; align-content: stretch; padding: 6px; overflow: hidden; }
 .commander-zone-button { position: relative; display: grid; min-width: 0; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; place-items: center; gap: 4px; padding: 6px; border-radius: 9px; transition: border-color .14s, background .14s, box-shadow .14s; }
 .zone-pile { position: relative; display: grid; width: var(--zone-card-size); aspect-ratio: 5 / 7; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 7px; color: #91a0aa; background: radial-gradient(circle at 50% 38%, rgba(98,230,187,.1), transparent 38%), linear-gradient(145deg, #1c2833, #0e151d); box-shadow: 3px 3px 0 #080c11, 5px 5px 0 rgba(119,139,153,.25), 0 9px 18px rgba(0,0,0,.32); }
-.zone-pile img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.zone-pile img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: contain; }
 .zone-pile > svg { width: 24px; height: 24px; opacity: .62; }
 .zone-pile > strong { position: absolute; right: -7px; bottom: -7px; display: grid; min-width: 28px; height: 28px; place-items: center; padding: 0 5px; border: 2px solid #10171f; border-radius: 999px; color: #f1f5f7; background: #24313c; font-size: 11px; font-weight: 800; }
 .zone-label { color: #89969e; font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
@@ -2903,7 +2903,7 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .card-preview-panel > header strong { max-width: 220px; margin-top: 2px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .card-preview-panel > header button { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--nt-line); border-radius: 7px; color: var(--nt-muted); background: rgba(255,255,255,.03); }
 .card-preview-stage { display: grid; min-height: 300px; place-items: center; padding: 8px; overflow: hidden; background: radial-gradient(circle, rgba(98,230,187,.055), transparent 60%); }
-.card-preview-stage > img { display: block; width: var(--card-size-preview); max-height: min(46vh, 440px); border-radius: 4.8% / 3.5%; object-fit: contain; box-shadow: 0 16px 35px rgba(0,0,0,.5); }
+.card-preview-stage > img { display: block; width: auto; height: 100%; max-width: 100%; max-height: 100%; border-radius: 4.8% / 3.5%; object-fit: contain; box-shadow: 0 16px 35px rgba(0,0,0,.5); }
 .card-preview-empty { display: grid; justify-items: center; color: #66737d; text-align: center; }
 .card-preview-empty > img { display: block; width: min(210px, 80%); aspect-ratio: 5 / 7; border-radius: 4.8% / 3.5%; object-fit: cover; box-shadow: 0 14px 32px rgba(0,0,0,.45); }
 .card-preview-empty p { margin: 14px 0 3px; font-size: 12px; }
@@ -3235,8 +3235,8 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .opponent-battlefield::before { position: absolute; top: 8px; left: 10px; color: rgba(132,144,155,.42); font-size: 8px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; content: "Battlefield"; }
 .hidden-hand { min-width: 0; min-height: 0; border-top: 1px solid var(--nt-line); background: rgba(8,12,17,.38); }
 .local-board { grid-template-rows: auto minmax(0, 1fr) calc(var(--card-size-hand) * 1.4 + 35px); }
-.local-playmat { grid-template-columns: 150px minmax(0, 1fr); }
-.local-zones { --zone-card-size: clamp(48px, 4.8vh, 60px); }
+.local-playmat { grid-template-columns: clamp(164px, 12vw, 184px) minmax(0, 1fr); }
+.local-zones { --zone-card-size: clamp(48px, 4.8vh, 60px); position: relative; z-index: 2; min-width: 164px; padding: 8px 12px 12px 8px; overflow: visible; }
 .shared-center { position: absolute; z-index: 20; top: 50%; left: 50%; width: min(96%, 980px); min-height: 30px; padding: 3px 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; background: rgba(7,11,15,.92); box-shadow: 0 5px 18px rgba(0,0,0,.45); transform: translate(-50%, -50%); }
 .shared-center .phase-track { min-width: 0; flex: 1; }
 .local-hand > div { gap: 4px; }
@@ -3246,6 +3246,6 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .zone-browser { width: min(980px, calc(100vw - clamp(286px, 17vw, 330px) - 42px)); max-height: calc(100vh - 94px); }
 .zone-browser .commander-card__image, .artwork-grid img { object-fit: contain; background: #05080b; }
 .damage-source { display: grid; width: 18px; height: 18px; place-items: center; border: 1px solid; border-radius: 50%; color: #eef5f2; font-size: 7px; font-style: normal; }
-@media (max-height: 850px) { .commander-screen { --card-size-local: 70px; --card-size-opponent: 54px; --card-size-hand: 72px; }.opponent-board { grid-template-columns: 112px minmax(0, 1fr); }.local-playmat { grid-template-columns: 132px minmax(0, 1fr); }.local-zones { --zone-card-size: 44px; } }
+@media (max-height: 850px) { .commander-screen { --card-size-local: 70px; --card-size-opponent: 54px; --card-size-hand: 72px; }.opponent-board { grid-template-columns: 112px minmax(0, 1fr); }.local-playmat { grid-template-columns: 164px minmax(0, 1fr); }.local-zones { --zone-card-size: 44px; } }
 .honor-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; }.honor-row > b { color: var(--nt-muted); font-size: 10px; }.honor-row > .person-row { padding: 0; }.honor-row > strong { color: #e1cf8d; font-size: 13px; }
 .honor-prompt > section { display: grid; gap: 8px; }.honor-prompt > section > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--nt-line); border-radius: 9px; color: var(--nt-text); background: rgba(255,255,255,.025); text-align: left; }.honor-prompt > section > button:hover { border-color: var(--nt-green); }.honor-prompt > section > button small { color: #e1cf8d; }
