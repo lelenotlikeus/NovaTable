@@ -22,6 +22,18 @@ function renderGame() {
 }
 
 describe("Commander board interactions", () => {
+  it("renders four seats with visible side zones instead of compressed opponent footers", () => {
+    render(<CommanderBoard players={players} startingLife={40} lobbyName="Commander Night" onLeave={() => undefined} />);
+    expect(document.querySelectorAll(".opponent-board")).toHaveLength(3);
+    expect(document.querySelector(".local-board")).toBeInTheDocument();
+    document.querySelectorAll<HTMLElement>(".opponent-zones").forEach((zones) => {
+      expect(zones).toHaveTextContent("Library");
+      expect(zones).toHaveTextContent("Graveyard");
+      expect(zones).toHaveTextContent("Exile");
+    });
+    expect(document.querySelector(".opponent-board > footer")).toBeNull();
+  });
+
   it("starts with an empty hand and lets the player draw the opening seven", () => {
     render(<CommanderBoard players={players} startingLife={40} lobbyName="Commander Night" onLeave={() => undefined} />);
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("0");

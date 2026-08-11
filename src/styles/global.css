@@ -3215,16 +3215,37 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 [data-theme="light"] .zone-pile > em { color: #344750; }
 .opponent-board > footer button b { max-width: 90px; overflow: hidden; color: var(--nt-green); font-size: inherit; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Beta playtest: keep every battlefield and complete card visible at desktop sizes. */
-.commander-table { grid-template-rows: minmax(270px, 40vh) minmax(34px, auto) minmax(0, 1fr); }
-.commander-screen { --card-size-opponent: clamp(68px, 3.8vw, 84px); }
-.opponent-public { grid-template-columns: calc(var(--card-size-opponent) + 12px) minmax(0, 1fr) 54px; }
+/* Four equal Commander seats: every player gets the same table footprint. */
+.commander-screen { --card-size-local: clamp(74px, 4vw, 88px); --card-size-opponent: clamp(58px, 3.2vw, 70px); --card-size-hand: clamp(76px, 4.1vw, 84px); }
+.commander-table { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px; overflow: hidden; padding: 6px; }
+.opponents-grid { display: contents; }
+.opponent-board, .local-board { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--nt-line); border-radius: 10px; background: rgba(255,255,255,.015); }
+.opponent-board { display: grid; grid-template-columns: 126px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.opponent-board > .player-hud { grid-column: 1 / -1; }
+.opponent-zones { display: grid; min-width: 0; min-height: 0; grid-column: 1; grid-row: 2; grid-template-rows: minmax(96px, 1.35fr) repeat(3, minmax(42px, 1fr)); gap: 5px; padding: 6px; overflow: hidden; border-right: 1px solid var(--nt-line); }
+.opponent-zones .opponent-commander { min-height: 0; }
+.opponent-zones .opponent-commander .commander-card-shell { width: min(var(--card-size-opponent), 62px); height: min(calc(var(--card-size-opponent) * 1.4), 87px); }
+.opponent-zones > button { position: relative; display: grid; min-width: 0; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 5px; padding: 6px; overflow: hidden; border: 1px solid var(--nt-line); border-radius: 7px; color: var(--nt-muted); background: rgba(255,255,255,.018); text-align: left; }
+.opponent-zones > button:hover { color: var(--nt-green); background: rgba(98,230,187,.06); }
+.opponent-zones > button span { overflow: hidden; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.opponent-zones > button strong { color: var(--nt-text); font-size: 12px; }
+.opponent-zones > button b { position: absolute; right: 5px; bottom: 2px; max-width: 78px; overflow: hidden; color: var(--nt-green); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.opponent-public { display: grid; min-width: 0; min-height: 0; grid-column: 2; grid-row: 2; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 54px; gap: 0; padding: 0; }
+.opponent-battlefield { min-width: 0; min-height: 0; margin: 6px; overflow: hidden; }
+.opponent-battlefield::before { position: absolute; top: 8px; left: 10px; color: rgba(132,144,155,.42); font-size: 8px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; content: "Battlefield"; }
+.hidden-hand { min-width: 0; min-height: 0; border-top: 1px solid var(--nt-line); background: rgba(8,12,17,.38); }
+.local-board { grid-template-rows: auto minmax(0, 1fr) calc(var(--card-size-hand) * 1.4 + 35px); }
+.local-playmat { grid-template-columns: 150px minmax(0, 1fr); }
+.local-zones { --zone-card-size: clamp(48px, 4.8vh, 60px); }
+.shared-center { position: absolute; z-index: 20; top: 50%; left: 50%; width: min(96%, 980px); min-height: 30px; padding: 3px 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; background: rgba(7,11,15,.92); box-shadow: 0 5px 18px rgba(0,0,0,.45); transform: translate(-50%, -50%); }
+.shared-center .phase-track { min-width: 0; flex: 1; }
+.local-hand > div { gap: 4px; }
 .phase-track { min-width: 0; justify-content: flex-start; overflow-x: auto; scrollbar-width: thin; }
 .phase-track button { flex: 0 0 auto; }
 .phase-track button:disabled, .table-tools button:disabled { cursor: not-allowed; opacity: .38; }
 .zone-browser { width: min(980px, calc(100vw - clamp(286px, 17vw, 330px) - 42px)); max-height: calc(100vh - 94px); }
 .zone-browser .commander-card__image, .artwork-grid img { object-fit: contain; background: #05080b; }
 .damage-source { display: grid; width: 18px; height: 18px; place-items: center; border: 1px solid; border-radius: 50%; color: #eef5f2; font-size: 7px; font-style: normal; }
-@media (max-height: 850px) { .commander-table { grid-template-rows: minmax(235px, 38vh) minmax(32px, auto) minmax(0, 1fr); } }
+@media (max-height: 850px) { .commander-screen { --card-size-local: 70px; --card-size-opponent: 54px; --card-size-hand: 72px; }.opponent-board { grid-template-columns: 112px minmax(0, 1fr); }.local-playmat { grid-template-columns: 132px minmax(0, 1fr); }.local-zones { --zone-card-size: 44px; } }
 .honor-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; }.honor-row > b { color: var(--nt-muted); font-size: 10px; }.honor-row > .person-row { padding: 0; }.honor-row > strong { color: #e1cf8d; font-size: 13px; }
 .honor-prompt > section { display: grid; gap: 8px; }.honor-prompt > section > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--nt-line); border-radius: 9px; color: var(--nt-text); background: rgba(255,255,255,.025); text-align: left; }.honor-prompt > section > button:hover { border-color: var(--nt-green); }.honor-prompt > section > button small { color: #e1cf8d; }

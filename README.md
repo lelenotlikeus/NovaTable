@@ -7,7 +7,7 @@ or transport configuration.
 
 ![NovaTable four-player Commander gameplay](docs/assets/commander-gameplay.png)
 
-[Download NovaTable for Windows](https://novatable.162.243.65.125.sslip.io/) — install version 0.2.0 once; later releases are downloaded and installed automatically.
+[Download NovaTable for Windows](https://novatable.162.243.65.125.sslip.io/) — install the current version once; later releases are downloaded and installed automatically.
 
 The current beta is an end-to-end multiplayer vertical slice: global account,
 modern home, public/private lobbies, text deck import, a four-seat Commander

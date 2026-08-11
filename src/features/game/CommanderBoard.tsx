@@ -385,16 +385,22 @@ function OpponentBoard({ state, playerId, dispatch, onHover, onContext, onViewZo
   const commander = state.cards[player.commanderCardId];
   const hand = cardsInZone(state, playerId, "hand");
   const library = cardsInZone(state, playerId, "library");
+  const graveyard = cardsInZone(state, playerId, "graveyard");
+  const exile = cardsInZone(state, playerId, "exile");
   const revealedLibraryTop = library[0]?.revealed ? library[0] : null;
   const revealedHand = hand.filter((card) => card.revealed);
   return <section className={`opponent-board ${state.activePlayerId === playerId ? "is-active" : ""}`}>
     <PlayerHud state={state} playerId={playerId} dispatch={dispatch} />
-    <div className="opponent-public">
+    <aside className="opponent-zones">
       <div className="opponent-commander">{commander.zone === "commander" && <CommanderCard card={commander} selected={false} compact onHover={(hovered) => onHover(hovered ? commander.id : null)} onContext={(event) => onContext(commander, event)} />}<span>Tax {player.commanderTax}</span></div>
+      <button title={revealedLibraryTop?.name ?? "Library"} onMouseEnter={() => revealedLibraryTop && onHover(revealedLibraryTop.id)} onMouseLeave={() => revealedLibraryTop && onHover(null)}><Layers3 size={15} /><span>Library</span><strong>{library.length}</strong>{revealedLibraryTop && <b>{revealedLibraryTop.name}</b>}</button>
+      <button onClick={() => onViewZone("graveyard")}><Archive size={15} /><span>Graveyard</span><strong>{graveyard.length}</strong></button>
+      <button onClick={() => onViewZone("exile")}><Eye size={15} /><span>Exile</span><strong>{exile.length}</strong></button>
+    </aside>
+    <div className="opponent-public">
       <div className="opponent-battlefield">{!battlefield.length && <span className="opponent-battlefield-empty">Battlefield</span>}{battlefield.map((card, index) => <CommanderCard key={card.id} card={card} selected={false} compact freePosition={[card.battlefieldX ?? 18 + index * 18, card.battlefieldY ?? 50]} onHover={(hovered) => onHover(hovered ? card.id : null)} onContext={(event) => onContext(card, event)} onDouble={() => dispatch({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })} />)}</div>
       <div className="hidden-hand" title={`${hand.length} cards in hand`}>{revealedHand.length ? <CommanderCard card={revealedHand.at(-1)!} selected={false} compact onHover={(hovered) => onHover(hovered ? revealedHand.at(-1)!.id : null)} /> : Array.from({ length: Math.min(hand.length, 7) }, (_, index) => <i key={index}><img src="/magic-card-back.png" alt="" /></i>)}<span>{hand.length}{revealedHand.length ? ` · ${revealedHand.length} shown` : ""}</span></div>
     </div>
-    <footer><button title={revealedLibraryTop?.name ?? "Library"} onMouseEnter={() => revealedLibraryTop && onHover(revealedLibraryTop.id)} onMouseLeave={() => revealedLibraryTop && onHover(null)}><Layers3 size={13} />{library.length}{revealedLibraryTop && <b>{revealedLibraryTop.name}</b>}</button><button onClick={() => onViewZone("graveyard")}><Archive size={13} />{cardsInZone(state, playerId, "graveyard").length}</button><button onClick={() => onViewZone("exile")}><Eye size={13} />{cardsInZone(state, playerId, "exile").length}</button></footer>
   </section>;
 }
 
