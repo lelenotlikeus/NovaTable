@@ -33,6 +33,8 @@ describe("Commander board interactions", () => {
     });
     expect(document.querySelector(".opponent-board > footer")).toBeNull();
     expect(document.querySelectorAll(".mana-pool")).toHaveLength(4);
+    expect(document.querySelectorAll(".player-hud__name > div > .mana-pool")).toHaveLength(4);
+    expect(document.querySelector(".player-hud.is-local .mana-g img")).toHaveAttribute("src", "https://svgs.scryfall.io/card-symbols/G.svg");
     fireEvent.click(screen.getByRole("button", { name: "Add G mana" }));
     expect(document.querySelector(".player-hud.is-local .mana-g b")).toHaveTextContent("1");
   });

@@ -3250,10 +3250,14 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .honor-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; }.honor-row > b { color: var(--nt-muted); font-size: 10px; }.honor-row > .person-row { padding: 0; }.honor-row > strong { color: #e1cf8d; font-size: 13px; }
 .honor-prompt > section { display: grid; gap: 8px; }.honor-prompt > section > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--nt-line); border-radius: 9px; color: var(--nt-text); background: rgba(255,255,255,.025); text-align: left; }.honor-prompt > section > button:hover { border-color: var(--nt-green); }.honor-prompt > section > button small { color: #e1cf8d; }
 
-.mana-pool { display: flex; min-width: 0; grid-column: 1 / -1; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
-.mana-pool > small { margin-right: 2px; color: var(--nt-muted); font-size: 7px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-.mana-pool > span { display: flex; min-width: 38px; height: 22px; align-items: center; justify-content: center; gap: 3px; padding: 2px 4px; border: 1px solid rgba(255,255,255,.13); border-radius: 999px; color: #101418; background: #d9d4c2; font-size: 9px; }
-.mana-pool i { display: grid; width: 15px; height: 15px; place-items: center; border-radius: 50%; background: rgba(255,255,255,.38); font-size: 8px; font-style: normal; font-weight: 900; }
-.mana-pool b { min-width: 9px; text-align: center; }
-.mana-pool button { width: 15px; height: 15px; padding: 0; border: 0; border-radius: 50%; color: inherit; background: rgba(0,0,0,.12); font-size: 10px; line-height: 1; }
-.mana-pool .mana-u { background: #72bcea; }.mana-pool .mana-b { color: #eef2f4; background: #373b42; }.mana-pool .mana-r { background: #e88469; }.mana-pool .mana-g { background: #70bd83; }.mana-pool .mana-c { background: #a9b1b5; }
+.player-hud__name { min-width: 0; }
+.player-hud__name > div { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.player-hud__name > div > strong { min-width: 0; }
+.mana-pool { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+.mana-pool > span { position: relative; display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center; }
+.mana-pool img { display: block; width: 22px; height: 22px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.65)); }
+.mana-pool b { position: absolute; top: -4px; right: -4px; display: grid; min-width: 14px; height: 14px; place-items: center; padding: 0 3px; border: 1px solid rgba(255,255,255,.6); border-radius: 999px; color: #fff; background: #10151b; box-shadow: 0 1px 4px rgba(0,0,0,.75); font-size: 8px; line-height: 1; }
+.mana-pool button { position: absolute; z-index: 2; bottom: -5px; display: grid; width: 14px; height: 14px; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.3); border-radius: 50%; color: #fff; background: #172029; font-size: 10px; line-height: 1; opacity: 0; transition: opacity .12s, background .12s; }
+.mana-pool .mana-remove { left: -4px; }.mana-pool .mana-add { right: -4px; }
+.mana-pool > span:hover button, .mana-pool button:focus-visible { opacity: 1; }
+.mana-pool button:hover { background: #2d3b47; }

@@ -1,6 +1,6 @@
 [package]
 name = "novatable"
-version = "0.2.3"
+version = "0.2.4"
 description = "A modern open virtual tabletop for card games"
 authors = ["NovaTable contributors"]
 edition = "2021"
