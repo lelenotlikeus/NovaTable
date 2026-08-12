@@ -86,6 +86,27 @@ describe("Commander board interactions", () => {
     expect(Number(solRing.style.zIndex)).toBeLessThan(Number(forest.style.zIndex));
   });
 
+  it("resizes a permanent from the board it is currently controlled on", () => {
+    renderGame();
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Sol Ring" }));
+    let solRing = document.querySelector<HTMLElement>('.battlefield-drop [aria-label="Sol Ring"]')!;
+
+    fireEvent.contextMenu(solRing, { clientX: 500, clientY: 300 });
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: "Give control to…" }));
+    let prompt = screen.getByRole("dialog", { name: "Give control" });
+    fireEvent.change(within(prompt).getByLabelText("New controller"), { target: { value: "p1" } });
+    fireEvent.click(within(prompt).getByRole("button", { name: "Confirm" }));
+    solRing = document.querySelector<HTMLElement>('.opponent-battlefield [aria-label="Sol Ring"]')!;
+    expect(solRing).not.toHaveClass("is-compact");
+
+    fireEvent.contextMenu(solRing, { clientX: 500, clientY: 300 });
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: "Give control to…" }));
+    prompt = screen.getByRole("dialog", { name: "Give control" });
+    fireEvent.change(within(prompt).getByLabelText("New controller"), { target: { value: "p0" } });
+    fireEvent.click(within(prompt).getByRole("button", { name: "Confirm" }));
+    expect(document.querySelector('.battlefield-drop [aria-label="Sol Ring"]')).not.toHaveClass("is-compact");
+  });
+
   it("drags from hand, freely repositions, taps, previews and moves through the context menu", () => {
     renderGame();
     const battlefield = document.querySelector<HTMLElement>(".battlefield-drop")!;

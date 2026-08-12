@@ -2817,6 +2817,7 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .opponent-commander { display: grid; place-items: center; }
 .opponent-commander > span { right: 0; bottom: 0; padding: 3px 5px; font-size: 9px; }
 .opponent-battlefield { position: relative; display: block; min-width: 0; overflow: hidden; border-radius: 6px; background: rgba(255,255,255,.012); }
+.opponent-battlefield > .commander-card-shell { width: var(--card-size-opponent); height: calc(var(--card-size-opponent) * 1.4); }
 .opponent-board > footer { gap: 14px; padding: 5px 9px; font-size: 10px; }
 .hidden-hand i { width: 27px; height: 38px; overflow: hidden; background: #171f2a; }
 .hidden-hand i img { display: block; width: 100%; height: 100%; object-fit: cover; }
