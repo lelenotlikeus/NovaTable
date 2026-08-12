@@ -67,6 +67,18 @@ describe("Commander board interactions", () => {
     expect(document.querySelector(".turn-status i")).toHaveTextContent("untap");
   });
 
+  it("lets a real player advance into and out of development-player turns", () => {
+    const devPlayers = players.map((player, index) => ({ ...player, id: index ? `bot-${index}` : "p0", local: index === 0 }));
+    render(<CommanderBoard players={devPlayers} startingLife={40} lobbyName="Dev Commander Night" onLeave={() => undefined} />);
+    for (let index = 0; index < 10; index++) fireEvent.click(screen.getByRole("button", { name: "Next phase" }));
+    const advance = screen.getByRole("button", { name: "Next phase" });
+    expect(advance).toBeEnabled();
+    fireEvent.click(advance);
+    expect(document.querySelector(".turn-status strong")).toHaveTextContent("Mira");
+    for (let index = 0; index < 11; index++) fireEvent.click(screen.getByRole("button", { name: "Next phase" }));
+    expect(document.querySelector(".turn-status strong")).toHaveTextContent("Orin");
+  });
+
   it("suppresses empty-table context menus and visually stacks attachments under their target", () => {
     renderGame();
     expect(fireEvent.contextMenu(document.querySelector(".commander-table")!)).toBe(false);

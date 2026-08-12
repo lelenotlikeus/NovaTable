@@ -58,6 +58,14 @@ try {
   await assert.rejects(request(`/games/${lobby.id}/honor`, users[1].token, { targetUserId: users[0].user.id }), /already awarded/);
   const leaderboard = await request("/leaderboard", users[0].token);
   assert.equal(leaderboard[0].id, users[0].user.id);
+  const devLobby = await request("/lobbies", users[0].token, { name: "Dev Commander Night", format: "Commander", bracket: 3, privacy: "private", maxPlayers: 4, startingLife: 40, spectatorsAllowed: true, password: "", description: "dev turn test" });
+  for (let index = 0; index < 3; index++) await request(`/lobbies/${devLobby.id}/actions`, users[0].token, { action: "add-bot" });
+  await request(`/lobbies/${devLobby.id}/actions`, users[0].token, { action: "deck", deck });
+  await request(`/lobbies/${devLobby.id}/actions`, users[0].token, { action: "ready", ready: true });
+  await request(`/lobbies/${devLobby.id}/actions`, users[0].token, { action: "start" });
+  for (let index = 0; index < 22; index++) await request(`/games/${devLobby.id}/actions`, users[0].token, { action: { type: "NEXT_PHASE" } });
+  const devTurnEvents = await request(`/games/${devLobby.id}/actions?after=0`, users[0].token);
+  assert.equal(devTurnEvents.length, 22);
   console.log("NovaTable server multiplayer flow passed");
 } finally {
   process.kill();

@@ -242,17 +242,18 @@ createServer(async (request, response) => {
         const phases = ["untap", "upkeep", "draw", "main-1", "begin-combat", "attackers", "blockers", "combat-damage", "end-combat", "main-2", "end"];
         const activeIndex = lobby.players.findIndex((candidate) => candidate.userId === game.activePlayerId);
         const nextPlayerId = lobby.players[(activeIndex + 1) % lobby.players.length].userId;
+        const devTurnHandoff = game.activePlayerId.startsWith("bot-") || nextPlayerId.startsWith("bot-");
         if (input.action.type === "SET_PHASE") {
           if (game.activePlayerId !== user.id) return send(response, 403, { error: "Only the active player can choose a phase directly." });
           game.phaseIndex = Math.max(0, phases.indexOf(input.action.phase));
         }
         if (input.action.type === "NEXT_PHASE" && game.phaseIndex === phases.length - 1) {
-          if (user.id !== nextPlayerId) return send(response, 403, { error: "Only the next player can claim the turn from the end step." });
+          if (user.id !== nextPlayerId && !devTurnHandoff) return send(response, 403, { error: "Only the next player can claim the turn from the end step." });
           game.phaseIndex = 0;
           game.activePlayerId = nextPlayerId;
         } else if (input.action.type === "NEXT_PHASE") game.phaseIndex++;
         if (input.action.type === "NEXT_TURN") {
-          if (game.phaseIndex !== phases.length - 1 || user.id !== nextPlayerId) return send(response, 403, { error: "Use Next phase from the previous player's end step to claim your turn." });
+          if (game.phaseIndex !== phases.length - 1 || (user.id !== nextPlayerId && !devTurnHandoff)) return send(response, 403, { error: "Use Next phase from the previous player's end step to claim your turn." });
           game.phaseIndex = 0;
           game.activePlayerId = nextPlayerId;
         }
