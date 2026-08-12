@@ -17,8 +17,15 @@ const handCardBounds = rect(180, 700, 120, 168);
 
 function renderGame() {
   const result = render(<CommanderBoard players={players} startingLife={40} lobbyName="Commander Night" onLeave={() => undefined} />);
-  fireEvent.click(screen.getByRole("button", { name: "Draw 7" }));
+  drawCards(7);
   return result;
+}
+
+function drawCards(count: number) {
+  fireEvent.click(screen.getByRole("button", { name: "Draw X" }));
+  const prompt = screen.getByRole("dialog", { name: "Draw cards" });
+  fireEvent.change(within(prompt).getByLabelText("Number of cards"), { target: { value: String(count) } });
+  fireEvent.click(within(prompt).getByRole("button", { name: "Confirm" }));
 }
 
 describe("Commander board interactions", () => {
@@ -45,8 +52,27 @@ describe("Commander board interactions", () => {
   it("starts with an empty hand and lets the player draw the opening seven", () => {
     render(<CommanderBoard players={players} startingLife={40} lobbyName="Commander Night" onLeave={() => undefined} />);
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("0");
-    fireEvent.click(screen.getByRole("button", { name: "Draw 7" }));
+    drawCards(7);
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("7");
+  });
+
+  it("suppresses empty-table context menus and visually stacks attachments under their target", () => {
+    renderGame();
+    expect(fireEvent.contextMenu(document.querySelector(".commander-table")!)).toBe(false);
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Sol Ring" }));
+    fireEvent.doubleClick(screen.getAllByRole("button", { name: "Forest" })[0]);
+    let solRing = screen.getByRole("button", { name: "Sol Ring" });
+    fireEvent.contextMenu(solRing, { clientX: 500, clientY: 300 });
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: "Attach to…" }));
+    const prompt = screen.getByRole("dialog", { name: "Attach card" });
+    fireEvent.change(within(prompt).getByLabelText("Attach to"), { target: { value: "p0-card-1" } });
+    fireEvent.click(within(prompt).getByRole("button", { name: "Confirm" }));
+    solRing = screen.getByRole("button", { name: "Sol Ring" });
+    const forest = screen.getAllByRole("button", { name: "Forest" }).find((card) => card.closest(".battlefield-drop"))!;
+    expect(solRing).toHaveClass("is-attached");
+    expect(solRing.style.left).toBe(forest.style.left);
+    expect(Number.parseFloat(solRing.style.top)).toBeGreaterThan(Number.parseFloat(forest.style.top));
+    expect(Number(solRing.style.zIndex)).toBeLessThan(Number(forest.style.zIndex));
   });
 
   it("drags from hand, freely repositions, taps, previews and moves through the context menu", () => {

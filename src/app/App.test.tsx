@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { currentUser, decksFor, resetLocalPlatformForTests } from "../infrastructure/localPlatform";
 import { App } from "./App";
@@ -47,9 +47,12 @@ describe("NovaTable vertical slice", () => {
     expect(document.querySelector('[data-player-target="bot-3"] .mana-u')).toBeNull();
     expect(document.querySelector('[data-player-target="bot-3"] .mana-g')).toBeInTheDocument();
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("Your hand 0");
-    fireEvent.click(screen.getByRole("button", { name: "Draw 7" }));
+    fireEvent.click(screen.getByRole("button", { name: "Draw X" }));
+    const drawPrompt = screen.getByRole("dialog", { name: "Draw cards" });
+    fireEvent.change(within(drawPrompt).getByLabelText("Number of cards"), { target: { value: "7" } });
+    fireEvent.click(within(drawPrompt).getByRole("button", { name: "Confirm" }));
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("Your hand 7");
-    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-drop-zone="library"]')!);
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("Your hand 8");
   });
 

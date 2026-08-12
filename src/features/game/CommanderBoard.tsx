@@ -60,6 +60,13 @@ function contextMenuStyle(position: { x: number; y: number }, preferredHeight: n
   };
 }
 
+function battlefieldPlacement(card: CommanderCardState, battlefield: CommanderCardState[], fallback: readonly [number, number] = [50, 50]): readonly [number, number, number] {
+  const target = card.attachedTo ? battlefield.find((candidate) => candidate.id === card.attachedTo) : null;
+  if (!target) return [card.battlefieldX ?? fallback[0], card.battlefieldY ?? fallback[1], card.zIndex * 10 + 10];
+  const index = battlefield.filter((candidate) => candidate.attachedTo === target.id).sort((a, b) => a.order - b.order).findIndex((candidate) => candidate.id === card.id);
+  return [target.battlefieldX ?? 50, clamp((target.battlefieldY ?? 50) + 9 + Math.max(0, index) * 4, 8, 92), target.zIndex * 10 + 9 - Math.max(0, index)];
+}
+
 export function CommanderBoard({
   players,
   startingLife,
@@ -248,6 +255,10 @@ export function CommanderBoard({
     setGamePrompt({ title: "Mill cards", fields: [{ key: "count", label: "Number of cards", value: "1", type: "number", min: 1, max: localLibrary.length }], onSubmit: ({ count }) => action({ type: "MILL", playerId: localId, count: Number(count) }) });
   }
 
+  function drawCards() {
+    setGamePrompt({ title: "Draw cards", fields: [{ key: "count", label: "Number of cards", value: "1", type: "number", min: 1, max: localLibrary.length }], onSubmit: ({ count }) => action({ type: "DRAW_CARD", playerId: localId, count: Number(count) }) });
+  }
+
   function mulligan() {
     setGamePrompt({ title: "Take a mulligan", description: "Return your hand, shuffle, then draw the chosen amount.", fields: [{ key: "count", label: "New hand size", value: String(localHand.length), type: "number", min: 1, max: localLibrary.length + localHand.length }], onSubmit: ({ count }) => action({ type: "MULLIGAN", playerId: localId, seed: Date.now(), count: Number(count) }) });
   }
@@ -315,7 +326,7 @@ export function CommanderBoard({
     return viewedZone.cardIds ? viewedZone.cardIds.map((id) => state.cards[id]).filter((card): card is CommanderCardState => Boolean(card && card.zone === viewedZone.zone)) : ordered;
   })() : [];
 
-  return <main className={`commander-screen ${dragVisual?.started ? "is-dragging-card" : ""} ${arrowDraft?.started ? "is-drawing-arrow" : ""}`} style={{ "--nt-green": state.players[localId].accentColor ?? "#62e6bb" } as CSSProperties} onPointerDown={startArrow} onPointerMove={moveArrow} onPointerUp={finishArrow} onPointerCancel={cancelArrow} onContextMenu={(event) => { if ((event.target as HTMLElement).closest("[data-card-id], [data-player-target]")) event.preventDefault(); }}>
+  return <main className={`commander-screen ${dragVisual?.started ? "is-dragging-card" : ""} ${arrowDraft?.started ? "is-drawing-arrow" : ""}`} style={{ "--nt-green": state.players[localId].accentColor ?? "#62e6bb" } as CSSProperties} onPointerDown={startArrow} onPointerMove={moveArrow} onPointerUp={finishArrow} onPointerCancel={cancelArrow} onContextMenu={(event) => event.preventDefault()}>
     <header className="game-topbar">
       <div><img className="brand-logo" src="/novatable-logo.svg" alt="NovaTable" /><div><strong>{lobbyName}</strong><span>Commander · 4 players</span></div></div>
       <div className="turn-status"><span>Turn {state.turn}</span><strong>{state.players[state.activePlayerId].name}</strong><i>{state.phase.replace("-", " ")}</i></div>
@@ -347,7 +358,7 @@ export function CommanderBoard({
           </div>
           <div ref={battlefieldRef} className={`battlefield-drop ${dropZone === "battlefield" ? "is-drop-target" : ""}`} data-drop-zone="battlefield">
             {!localBattlefield.length && <span>Drag a card here — the battlefield is freely positionable</span>}
-            {localBattlefield.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} dragging={dragVisual?.started && dragVisual.cardId === card.id} freePosition={[card.battlefieldX ?? 50, card.battlefieldY ?? 50]} {...cardInteractions(card)} onDouble={() => action({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })} />)}
+            {localBattlefield.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} dragging={dragVisual?.started && dragVisual.cardId === card.id} freePosition={battlefieldPlacement(card, localBattlefield)} {...cardInteractions(card)} onDouble={() => action({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })} />)}
           </div>
         </div>
         <div className={`local-hand ${dropZone === "hand" ? "is-drop-target" : ""}`} data-drop-zone="hand" onContextMenu={(event) => { if ((event.target as HTMLElement).closest("[data-card-id]")) return; event.preventDefault(); setCardMenu(null); setZoneMenu({ zone: "hand", x: event.clientX, y: event.clientY }); }}>
@@ -361,7 +372,7 @@ export function CommanderBoard({
       <CardPreview card={previewCard} canPeek={previewCard?.ownerId === localId} pinned={Boolean(pinnedCardId && previewCardId === pinnedCardId)} onUnpin={() => setPinnedCardId(null)} />
       <section className="table-tools">
         <header>Quick actions</header>
-        <div><button onClick={() => action({ type: "DRAW_CARD", playerId: localId })}><Hand size={15} />Draw</button><button onClick={() => action({ type: "DRAW_CARD", playerId: localId, count: 7 })}><Hand size={15} />Draw 7</button><button onClick={createCustomToken}><CopyPlus size={15} />Create token</button><button onClick={millCards}><Skull size={15} />Mill X</button><button onClick={lookAtTop}><Eye size={15} />Look / Scry X</button><button onClick={() => action({ type: "SHUFFLE_LIBRARY", playerId: localId, seed: Date.now() })}><Shuffle size={15} />Shuffle</button><button onClick={mulligan}><RotateCcw size={15} />Mulligan</button><button onClick={() => action({ type: "UNTAP_ALL", playerId: localId })}><Sparkles size={15} />Untap all</button><button onClick={rollDie}><Dices size={15} />Roll die</button><button onClick={() => action({ type: "FLIP_COIN", playerId: localId, result: Math.random() < .5 ? "heads" : "tails" })}><Coins size={15} />Flip coin</button><button onClick={() => action({ type: "CLEAR_ARROWS" })}><X size={15} />Clear arrows</button><button className="next-phase" disabled={state.activePlayerId !== localId} title={state.activePlayerId !== localId ? `Waiting for ${state.players[state.activePlayerId].name}` : "Advance phase"} onClick={() => action({ type: "NEXT_PHASE" })}>Next phase <ChevronRight size={16} /></button></div>
+        <div><button onClick={drawCards}><Hand size={15} />Draw X</button><button onClick={createCustomToken}><CopyPlus size={15} />Create token</button><button onClick={millCards}><Skull size={15} />Mill X</button><button onClick={lookAtTop}><Eye size={15} />Look / Scry X</button><button onClick={() => action({ type: "SHUFFLE_LIBRARY", playerId: localId, seed: Date.now() })}><Shuffle size={15} />Shuffle</button><button onClick={mulligan}><RotateCcw size={15} />Mulligan</button><button onClick={() => action({ type: "UNTAP_ALL", playerId: localId })}><Sparkles size={15} />Untap all</button><button onClick={rollDie}><Dices size={15} />Roll die</button><button onClick={() => action({ type: "FLIP_COIN", playerId: localId, result: Math.random() < .5 ? "heads" : "tails" })}><Coins size={15} />Flip coin</button><button onClick={() => action({ type: "CLEAR_ARROWS" })}><X size={15} />Clear arrows</button><button className="next-phase" disabled={state.activePlayerId !== localId} title={state.activePlayerId !== localId ? `Waiting for ${state.players[state.activePlayerId].name}` : "Advance phase"} onClick={() => action({ type: "NEXT_PHASE" })}>Next phase <ChevronRight size={16} /></button></div>
       </section>
       <section className="game-log"><header><CircleDot size={14} /><strong>Game log & chat</strong></header><div>{[...state.log].reverse().slice(0, 30).map((entry) => <p key={entry.id}>{entry.message}</p>)}</div><form onSubmit={(event) => { event.preventDefault(); action({ type: "CHAT_MESSAGE", playerId: localId, text: chatMessage }); setChatMessage(""); }}><input aria-label="Game chat message" value={chatMessage} onChange={(event) => setChatMessage(event.target.value)} placeholder="Message the table" maxLength={500} /><button aria-label="Send game message"><Send size={13} /></button></form></section>
     </aside>
@@ -399,7 +410,7 @@ function OpponentBoard({ state, playerId, dispatch, onHover, onContext, onViewZo
       <button onClick={() => onViewZone("exile")}><Eye size={15} /><span>Exile</span><strong>{exile.length}</strong></button>
     </aside>
     <div className="opponent-public">
-      <div className="opponent-battlefield">{!battlefield.length && <span className="opponent-battlefield-empty">Battlefield</span>}{battlefield.map((card, index) => <CommanderCard key={card.id} card={card} selected={false} compact freePosition={[card.battlefieldX ?? 18 + index * 18, card.battlefieldY ?? 50]} onHover={(hovered) => onHover(hovered ? card.id : null)} onContext={(event) => onContext(card, event)} onDouble={() => dispatch({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })} />)}<div className="opponent-hand-count" title={revealedHand.length ? `${hand.length} cards · revealed: ${revealedHand.map((card) => card.name).join(", ")}` : `${hand.length} cards in hand`} onMouseEnter={() => revealedHand.length && onHover(revealedHand.at(-1)!.id)} onMouseLeave={() => revealedHand.length && onHover(null)}><Hand size={14} /><span>Hand</span><strong>{hand.length}</strong>{revealedHand.length > 0 && <b>{revealedHand.length} shown</b>}</div></div>
+      <div className="opponent-battlefield">{!battlefield.length && <span className="opponent-battlefield-empty">Battlefield</span>}{battlefield.map((card, index) => <CommanderCard key={card.id} card={card} selected={false} compact freePosition={battlefieldPlacement(card, battlefield, [18 + index * 18, 50])} onHover={(hovered) => onHover(hovered ? card.id : null)} onContext={(event) => onContext(card, event)} onDouble={() => dispatch({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })} />)}<div className="opponent-hand-count" title={revealedHand.length ? `${hand.length} cards · revealed: ${revealedHand.map((card) => card.name).join(", ")}` : `${hand.length} cards in hand`} onMouseEnter={() => revealedHand.length && onHover(revealedHand.at(-1)!.id)} onMouseLeave={() => revealedHand.length && onHover(null)}><Hand size={14} /><span>Hand</span><strong>{hand.length}</strong>{revealedHand.length > 0 && <b>{revealedHand.length} shown</b>}</div></div>
     </div>
   </section>;
 }
@@ -465,7 +476,7 @@ interface CommanderCardProps {
   compact?: boolean;
   hand?: boolean;
   previewOnly?: boolean;
-  freePosition?: readonly [number, number];
+  freePosition?: readonly [number, number, number?];
   onHover?: (hovered: boolean) => void;
   onClick?: () => void;
   onDouble?: () => void;
@@ -485,10 +496,10 @@ function CommanderCard({ card, selected, dragging = false, compact = false, hand
     "--card-a": card.palette[0],
     "--card-b": card.palette[1],
     "--card-rotation": `${card.rotation}deg`,
-    ...(freePosition ? { left: `${freePosition[0]}%`, top: `${freePosition[1]}%`, zIndex: card.zIndex + 2 } : {})
+    ...(freePosition ? { left: `${freePosition[0]}%`, top: `${freePosition[1]}%`, zIndex: freePosition[2] ?? card.zIndex + 2 } : {})
   } as CSSProperties;
   return <article
-    className={`commander-card-shell ${compact ? "is-compact" : ""} ${hand ? "is-hand-card" : ""} ${selected ? "is-selected" : ""} ${dragging ? "is-dragging" : ""} ${freePosition ? "is-free" : ""} ${previewOnly ? "is-preview-only" : ""}`}
+    className={`commander-card-shell ${compact ? "is-compact" : ""} ${hand ? "is-hand-card" : ""} ${card.attachedTo ? "is-attached" : ""} ${selected ? "is-selected" : ""} ${dragging ? "is-dragging" : ""} ${freePosition ? "is-free" : ""} ${previewOnly ? "is-preview-only" : ""}`}
     style={style}
     data-card-id={card.id}
     onMouseEnter={() => onHover?.(true)}
