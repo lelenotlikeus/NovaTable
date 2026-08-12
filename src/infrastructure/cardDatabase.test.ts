@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { cardRecordFromScryfall, getCardByName, searchCardDatabase, setPreferredCardPrinting, type CardPrinting } from "./cardDatabase";
 
 const printing: CardPrinting = {
-  name: "Sol Ring", nameLower: "sol ring", manaCost: "{1}", typeLine: "Artifact",
+  name: "Sol Ring", nameLower: "sol ring", manaCost: "{1}", colorIdentity: [], typeLine: "Artifact",
   oracleText: "Add {C}{C}.", power: null, toughness: null,
   imageUrl: "https://cards.example/sol-ring.jpg", printingId: "printing-1",
   setCode: "CMM", setName: "Commander Masters", collectorNumber: "396",
@@ -31,8 +31,9 @@ describe("card artwork preferences", () => {
   });
 
   it("prefers large Scryfall artwork", () => {
-    const card = cardRecordFromScryfall({ name: "Sol Ring", image_uris: { normal: "normal.jpg", large: "large.jpg" } });
+    const card = cardRecordFromScryfall({ name: "Sol Ring", color_identity: ["U"], image_uris: { normal: "normal.jpg", large: "large.jpg" } });
     expect(card.imageUrl).toBe("large.jpg");
+    expect(card.colorIdentity).toEqual(["U"]);
   });
 
   it("does not search an uninstalled local catalog", async () => {

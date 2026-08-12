@@ -124,6 +124,25 @@ describe("Commander game event reducer", () => {
     expect(cardsInZone(first, "p0", "library").map((card) => card.id)).not.toEqual(cardsInZone(second, "p0", "library").map((card) => card.id));
   });
 
+  it("adds mana for tapped basic lands and spends available mana on played spells", () => {
+    const manaPlayers: GameSetupPlayer[] = players.map((player, index) => index ? player : { ...player, manaColors: ["U"], cards: [
+      { name: "Island", quantity: 1 }, { name: "Counterspell", quantity: 1, manaCost: "{U}{U}" }
+    ] });
+    let state = createCommanderGame(manaPlayers, 40);
+    state = commanderGameReducer(state, { type: "DRAW_CARD", playerId: "p0", count: 2 });
+    const island = cardsInZone(state, "p0", "hand").find((card) => card.name === "Island")!;
+    const counterspell = cardsInZone(state, "p0", "hand").find((card) => card.name === "Counterspell")!;
+    state = commanderGameReducer(state, { type: "MOVE_CARD", cardId: island.id, zone: "battlefield" });
+    state = commanderGameReducer(state, { type: "TAP_CARD", cardId: island.id });
+    state = commanderGameReducer(state, { type: "TAP_CARD", cardId: island.id });
+    expect(state.players.p0.manaPool.U).toBe(1);
+    state = commanderGameReducer(state, { type: "CHANGE_MANA", playerId: "p0", color: "U", delta: 1 });
+    state = commanderGameReducer(state, { type: "MOVE_CARD", cardId: counterspell.id, zone: "stack", manaCost: "{U}{U}" });
+    expect(state.players.p0.manaPool.U).toBe(0);
+    state = commanderGameReducer(state, { type: "CHANGE_MANA", playerId: "p0", color: "U", delta: -1 });
+    expect(state.players.p0.manaPool.U).toBe(0);
+  });
+
   it("supports complete combat steps, control changes, transforms and shared artwork", () => {
     let state = createCommanderGame(players, 40);
     const card = cardsInZone(state, "p0", "library")[0];

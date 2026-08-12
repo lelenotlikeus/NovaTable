@@ -3,6 +3,7 @@ import type { DeckCardEntry } from "../platform/types";
 export const commanderPhases = ["untap", "upkeep", "draw", "main-1", "begin-combat", "attackers", "blockers", "combat-damage", "end-combat", "main-2", "end"] as const;
 export type CommanderPhase = (typeof commanderPhases)[number];
 export type CommanderZone = "library" | "hand" | "battlefield" | "graveyard" | "exile" | "commander" | "stack";
+export type ManaColor = "W" | "U" | "B" | "R" | "G" | "C";
 
 export interface GameSetupPlayer {
   id: string;
@@ -11,6 +12,8 @@ export interface GameSetupPlayer {
   avatarImage?: string;
   accentColor?: string;
   commander: string;
+  commanderManaCost?: string;
+  manaColors?: ManaColor[];
   cards: DeckCardEntry[];
   local: boolean;
 }
@@ -26,6 +29,8 @@ export interface CommanderPlayer {
   poison: number;
   commanderTax: number;
   commanderDamage: Record<string, number>;
+  manaColors: ManaColor[];
+  manaPool: Record<ManaColor, number>;
   local: boolean;
 }
 
@@ -34,6 +39,7 @@ export interface CommanderCardState {
   ownerId: string;
   controllerId: string;
   name: string;
+  manaCost: string;
   zone: CommanderZone;
   order: number;
   tapped: boolean;
@@ -91,7 +97,7 @@ export interface CommanderGameState {
 
 export type CommanderGameAction =
   | { type: "DRAW_CARD"; playerId: string; count?: number }
-  | { type: "MOVE_CARD"; cardId: string; zone: CommanderZone; placement?: "top" | "bottom"; x?: number; y?: number; zIndex?: number }
+  | { type: "MOVE_CARD"; cardId: string; zone: CommanderZone; placement?: "top" | "bottom"; x?: number; y?: number; zIndex?: number; manaCost?: string }
   | { type: "MOVE_ZONE_CARDS"; playerId: string; from: CommanderZone; zone: CommanderZone; placement?: "top" | "bottom" }
   | { type: "TAP_CARD"; cardId: string }
   | { type: "UNTAP_CARD"; cardId: string }
@@ -100,6 +106,7 @@ export type CommanderGameAction =
   | { type: "CHANGE_POISON"; playerId: string; delta: number }
   | { type: "CHANGE_COMMANDER_TAX"; playerId: string; delta: number }
   | { type: "CHANGE_COMMANDER_DAMAGE"; playerId: string; sourcePlayerId: string; delta: number }
+  | { type: "CHANGE_MANA"; playerId: string; color: ManaColor; delta: number }
   | { type: "CREATE_TOKEN"; playerId: string; name?: string; count?: number; power?: number | null; toughness?: number | null; counters?: number }
   | { type: "ADD_COUNTER"; cardId: string; delta: number }
   | { type: "MODIFY_POWER_TOUGHNESS"; cardId: string; power: number; toughness: number }

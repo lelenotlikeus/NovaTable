@@ -31,6 +31,7 @@ export interface StoredAccount extends UserProfile {
 export interface DeckCardEntry {
   name: string;
   quantity: number;
+  manaCost?: string;
 }
 
 export interface Deck {

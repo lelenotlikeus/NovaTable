@@ -32,6 +32,9 @@ describe("Commander board interactions", () => {
       expect(zones).toHaveTextContent("Exile");
     });
     expect(document.querySelector(".opponent-board > footer")).toBeNull();
+    expect(document.querySelectorAll(".mana-pool")).toHaveLength(4);
+    fireEvent.click(screen.getByRole("button", { name: "Add G mana" }));
+    expect(document.querySelector(".player-hud.is-local .mana-g b")).toHaveTextContent("1");
   });
 
   it("starts with an empty hand and lets the player draw the opening seven", () => {

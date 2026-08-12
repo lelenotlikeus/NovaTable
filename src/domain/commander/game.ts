@@ -3,6 +3,7 @@ import {
   type CommanderCardState,
   type CommanderGameAction,
   type CommanderGameState,
+  type ManaColor,
   type CommanderZone,
   type GameSetupPlayer
 } from "./types";
@@ -19,11 +20,43 @@ function palette(name: string) {
   return palettes[hash % palettes.length];
 }
 
+const manaOrder: ManaColor[] = ["W", "U", "B", "R", "G", "C"];
+const basicMana = new Map<string, ManaColor>([
+  ["plains", "W"], ["snow-covered plains", "W"], ["island", "U"], ["snow-covered island", "U"],
+  ["swamp", "B"], ["snow-covered swamp", "B"], ["mountain", "R"], ["snow-covered mountain", "R"],
+  ["forest", "G"], ["snow-covered forest", "G"], ["wastes", "C"]
+]);
+
 function expandedLibrary(player: GameSetupPlayer) {
-  const names = player.cards.flatMap((entry) => Array.from({ length: entry.quantity }, () => entry.name));
-  const commanderIndex = names.findIndex((name) => name.toLowerCase() === player.commander.toLowerCase());
-  if (commanderIndex >= 0) names.splice(commanderIndex, 1);
-  return names.slice(0, 99);
+  const cards = player.cards.flatMap((entry) => Array.from({ length: entry.quantity }, () => ({ name: entry.name, manaCost: entry.manaCost ?? "" })));
+  const commanderIndex = cards.findIndex((card) => card.name.toLowerCase() === player.commander.toLowerCase());
+  if (commanderIndex >= 0) cards.splice(commanderIndex, 1);
+  return cards.slice(0, 99);
+}
+
+function deckManaColors(player: GameSetupPlayer) {
+  const colors = new Set<ManaColor>(player.manaColors ?? []);
+  player.cards.forEach((card) => {
+    const basic = basicMana.get(card.name.toLowerCase()); if (basic) colors.add(basic);
+    for (const symbol of card.manaCost?.matchAll(/\{([WUBRG])(?:\/[^}]+)?\}/g) ?? []) colors.add(symbol[1] as ManaColor);
+  });
+  colors.add("C");
+  return manaOrder.filter((color) => colors.has(color));
+}
+
+function spendMana(state: CommanderGameState, playerId: string, manaCost: string) {
+  const player = state.players[playerId]; if (!player || !manaCost) return state;
+  const manaPool = { ...player.manaPool }; let generic = 0;
+  for (const raw of [...manaCost.matchAll(/\{([^}]+)\}/g)].map((match) => match[1])) {
+    if (/^\d+$/.test(raw)) { generic += Number(raw); continue; }
+    const choices = raw.split("/").filter((symbol): symbol is ManaColor => manaOrder.includes(symbol as ManaColor));
+    const color = choices.find((choice) => manaPool[choice] > 0);
+    if (color) manaPool[color]--;
+  }
+  for (const color of ["C", "W", "U", "B", "R", "G"] as ManaColor[]) {
+    const spent = Math.min(generic, manaPool[color]); manaPool[color] -= spent; generic -= spent;
+  }
+  return { ...state, players: { ...state.players, [playerId]: { ...player, manaPool } } };
 }
 
 function reorderLibrary(cards: Record<string, CommanderCardState>, playerId: string, seed: number) {
@@ -74,16 +107,16 @@ export function createCommanderGame(players: GameSetupPlayer[], startingLife = 4
   const gamePlayers = Object.fromEntries(players.map((player, playerIndex) => {
     const commanderId = `${player.id}-commander`;
     cards[commanderId] = {
-      id: commanderId, ownerId: player.id, controllerId: player.id, name: player.commander, zone: "commander", order: 0,
+      id: commanderId, ownerId: player.id, controllerId: player.id, name: player.commander, manaCost: player.commanderManaCost ?? "", zone: "commander", order: 0,
       tapped: false, faceDown: false, counters: 0, namedCounters: {}, power: null, toughness: null, powerModifier: 0, toughnessModifier: 0,
       token: false, revealed: true, annotation: "", attachedTo: null, battlefieldX: null, battlefieldY: null,
       rotation: 0, zIndex: 0, transformed: false,
       palette: palette(player.commander)
     };
-    expandedLibrary(player).forEach((name, index) => {
+    expandedLibrary(player).forEach(({ name, manaCost }, index) => {
       const cardId = `${player.id}-card-${index}`;
       cards[cardId] = {
-        id: cardId, ownerId: player.id, controllerId: player.id, name, zone: "library", order: index,
+        id: cardId, ownerId: player.id, controllerId: player.id, name, manaCost, zone: "library", order: index,
         tapped: false, faceDown: false, counters: 0, namedCounters: {}, power: null,
         toughness: null, powerModifier: 0, toughnessModifier: 0,
         token: false, revealed: false, annotation: "", attachedTo: null, battlefieldX: null, battlefieldY: null,
@@ -93,7 +126,7 @@ export function createCommanderGame(players: GameSetupPlayer[], startingLife = 4
     });
     return [player.id, {
       id: player.id, name: player.name, avatar: player.avatar, avatarImage: player.avatarImage, accentColor: player.accentColor, commanderCardId: commanderId,
-      life: startingLife, poison: 0, commanderTax: 0,
+      life: startingLife, poison: 0, commanderTax: 0, manaColors: deckManaColors(player), manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
       commanderDamage: Object.fromEntries(players.filter((other) => other.id !== player.id).map((other) => [other.id, 0])),
       local: player.local
     }];
@@ -133,8 +166,14 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
         commanderDamage: { ...player.commanderDamage, [action.sourcePlayerId]: Math.max(0, (player.commanderDamage[action.sourcePlayerId] ?? 0) + action.delta) }
       } } };
     }
+    case "CHANGE_MANA": {
+      const player = state.players[action.playerId]; if (!player || !player.manaColors.includes(action.color)) return state;
+      return { ...state, players: { ...state.players, [player.id]: { ...player, manaPool: { ...player.manaPool, [action.color]: Math.max(0, player.manaPool[action.color] + action.delta) } } } };
+    }
     case "MOVE_CARD": {
       const card = state.cards[action.cardId]; if (!card) return state;
+      const manaCost = action.manaCost ?? card.manaCost;
+      const paysMana = (card.zone === "hand" || card.zone === "commander") && (action.zone === "battlefield" || action.zone === "stack");
       const order = action.zone === "library"
         ? action.placement === "top" ? zoneEdge(state.cards, card.ownerId, "library", "min") - 1 : zoneEdge(state.cards, card.ownerId, "library", "max") + 1
         : zoneEdge(state.cards, card.ownerId, action.zone, "max") + 1;
@@ -147,6 +186,7 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
       }
       cards[card.id] = {
         ...card,
+        manaCost,
         zone: action.zone,
         controllerId: action.zone === "battlefield" ? card.controllerId : card.ownerId,
         order,
@@ -159,7 +199,7 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
         zIndex: action.zone === "battlefield" ? action.zIndex ?? card.zIndex : 0,
         transformed: action.zone === "battlefield" ? card.transformed : false
       };
-      const next = { ...state, selectedCardId: null, cards };
+      const next = paysMana ? spendMana({ ...state, selectedCardId: null, cards }, card.ownerId, manaCost) : { ...state, selectedCardId: null, cards };
       return action.zone === "battlefield" || action.zone === card.zone
         ? next
         : log(next, `${card.name} moved to ${action.zone}`, card.ownerId);
@@ -185,7 +225,10 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
     case "UNTAP_CARD": {
       const card = state.cards[action.cardId]; if (!card || card.zone !== "battlefield") return state;
       const tapped = action.type === "TAP_CARD";
-      return { ...state, cards: { ...state.cards, [card.id]: { ...card, tapped, rotation: tapped ? 90 : 0 } } };
+      let next = { ...state, cards: { ...state.cards, [card.id]: { ...card, tapped, rotation: tapped ? 90 : 0 } } };
+      const produced = tapped && !card.tapped ? basicMana.get(card.name.toLowerCase()) : undefined;
+      if (produced) next = commanderGameReducer(next, { type: "CHANGE_MANA", playerId: card.controllerId, color: produced, delta: 1 });
+      return next;
     }
     case "UNTAP_ALL": {
       const cards = Object.fromEntries(Object.entries(state.cards).map(([id, card]) => [id,
@@ -263,7 +306,7 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
       for (let index = 0; index < count; index++) {
         const cardId = `token-${state.nextLogId}-${action.playerId}-${index}`;
         cards[cardId] = {
-          id: cardId, ownerId: action.playerId, controllerId: action.playerId, name, zone: "battlefield", order: firstOrder + index,
+          id: cardId, ownerId: action.playerId, controllerId: action.playerId, name, manaCost: "", zone: "battlefield", order: firstOrder + index,
           tapped: false, faceDown: false, counters: Math.max(0, action.counters ?? 0), namedCounters: {}, power, toughness, powerModifier: 0, toughnessModifier: 0,
           token: true, revealed: true, annotation: "", attachedTo: null,
           battlefieldX: 28 + ((state.nextLogId * 13 + index * 9) % 55), battlefieldY: 52 + (index % 2) * 8,

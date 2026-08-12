@@ -236,7 +236,7 @@ createServer(async (request, response) => {
       if (request.method === "GET") return send(response, 200, game.actions.filter((event) => event.sequence > Number(url.searchParams.get("after") || 0)));
       if (request.method === "POST") {
         const input = await body(request); if (!input.action?.type) throw new Error("Invalid game action.");
-        const selfOnly = new Set(["DRAW_CARD", "MOVE_ZONE_CARDS", "UNTAP_ALL", "CHANGE_LIFE", "CHANGE_POISON", "CHANGE_COMMANDER_TAX", "CHANGE_COMMANDER_DAMAGE", "CREATE_TOKEN", "ROLL_DIE", "FLIP_COIN", "CHAT_MESSAGE", "SHUFFLE_LIBRARY", "MILL", "MULLIGAN"]);
+        const selfOnly = new Set(["DRAW_CARD", "MOVE_ZONE_CARDS", "UNTAP_ALL", "CHANGE_LIFE", "CHANGE_POISON", "CHANGE_COMMANDER_TAX", "CHANGE_COMMANDER_DAMAGE", "CHANGE_MANA", "CREATE_TOKEN", "ROLL_DIE", "FLIP_COIN", "CHAT_MESSAGE", "SHUFFLE_LIBRARY", "MILL", "MULLIGAN"]);
         if (selfOnly.has(input.action.type) && input.action.playerId !== user.id) return send(response, 403, { error: "You may only change your own player state." });
         const turnActions = new Set(["SET_PHASE", "NEXT_PHASE", "NEXT_TURN"]);
         game.activePlayerId ||= lobby.players[0].userId; game.phaseIndex ||= 0;

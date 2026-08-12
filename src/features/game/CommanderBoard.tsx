@@ -25,7 +25,8 @@ import {
   type CommanderGameState,
   type CommanderTarget,
   type CommanderZone,
-  type GameSetupPlayer
+  type GameSetupPlayer,
+  type ManaColor
 } from "../../domain/commander/types";
 import { CardArtworkPicker, useCardRecord } from "../cards/CardArtwork";
 import { FullscreenButton } from "../shell/FullscreenButton";
@@ -203,9 +204,9 @@ export function CommanderBoard({
       const x = clamp(((centerX - bounds.left) / bounds.width) * 100, marginX, 100 - marginX);
       const y = clamp(((centerY - bounds.top) / bounds.height) * 100, marginY, 100 - marginY);
       const zIndex = Math.max(0, ...localBattlefield.map((permanent) => permanent.zIndex)) + 1;
-      action({ type: "MOVE_CARD", cardId: card.id, zone, x: roundCoordinate(x), y: roundCoordinate(y), zIndex });
+      action({ type: "MOVE_CARD", cardId: card.id, zone, x: roundCoordinate(x), y: roundCoordinate(y), zIndex, manaCost: card.manaCost });
     } else {
-      action({ type: "MOVE_CARD", cardId: card.id, zone });
+      action({ type: "MOVE_CARD", cardId: card.id, zone, manaCost: card.manaCost });
     }
   }
 
@@ -235,7 +236,7 @@ export function CommanderBoard({
   function playAtCenter(card: CommanderCardState) {
     const offset = (localBattlefield.length % 5) * 4;
     const zIndex = Math.max(0, ...localBattlefield.map((permanent) => permanent.zIndex)) + 1;
-    action({ type: "MOVE_CARD", cardId: card.id, zone: "battlefield", x: 42 + offset, y: 52, zIndex });
+    action({ type: "MOVE_CARD", cardId: card.id, zone: "battlefield", x: 42 + offset, y: 52, zIndex, manaCost: card.manaCost });
   }
 
   function lookAtTop() {
@@ -406,7 +407,11 @@ function OpponentBoard({ state, playerId, dispatch, onHover, onContext, onViewZo
 
 function PlayerHud({ state, playerId, dispatch, local = false }: { state: CommanderGameState; playerId: string; dispatch: (action: CommanderGameAction) => void; local?: boolean }) {
   const player = state.players[playerId];
-  return <header className={`player-hud ${local ? "is-local" : ""}`} data-player-target={playerId}><span className={`avatar ${player.avatarImage ? "has-image" : ""}`} style={{ borderColor: player.accentColor }}>{player.avatarImage ? <img src={player.avatarImage} alt="" /> : player.avatar}</span><div className="player-hud__name"><strong>{player.name}</strong><span>{state.activePlayerId === playerId ? "Active player" : local ? "You" : "Connected"}</span></div><div className={`life-stepper ${local ? "" : "is-readonly"}`}>{local && <button aria-label="Lose one life" onClick={() => dispatch({ type: "CHANGE_LIFE", playerId, delta: -1 })}><Minus size={13} /></button>}<strong>{player.life}</strong>{local && <button aria-label="Gain one life" onClick={() => dispatch({ type: "CHANGE_LIFE", playerId, delta: 1 })}><Plus size={13} /></button>}<span>Life</span></div><div className="poison-stepper"><Skull size={13} /><button onClick={() => dispatch({ type: "CHANGE_POISON", playerId, delta: -1 })}>−</button><strong>{player.poison}</strong><button onClick={() => dispatch({ type: "CHANGE_POISON", playerId, delta: 1 })}>+</button></div><div className="damage-strip">{Object.entries(player.commanderDamage).map(([sourceId, value]) => <span key={sourceId} title={`Commander damage from ${state.players[sourceId].name}`}><button aria-label={`Remove commander damage from ${state.players[sourceId].name}`} onClick={() => dispatch({ type: "CHANGE_COMMANDER_DAMAGE", playerId, sourcePlayerId: sourceId, delta: -1 })}>−</button><b><i className="damage-source" style={{ borderColor: state.players[sourceId].accentColor }}>{state.players[sourceId].avatar}</i>{value}</b><button aria-label={`Add commander damage from ${state.players[sourceId].name}`} onClick={() => dispatch({ type: "CHANGE_COMMANDER_DAMAGE", playerId, sourcePlayerId: sourceId, delta: 1 })}>+</button></span>)}</div></header>;
+  return <header className={`player-hud ${local ? "is-local" : ""}`} data-player-target={playerId}><span className={`avatar ${player.avatarImage ? "has-image" : ""}`} style={{ borderColor: player.accentColor }}>{player.avatarImage ? <img src={player.avatarImage} alt="" /> : player.avatar}</span><div className="player-hud__name"><strong>{player.name}</strong><span>{state.activePlayerId === playerId ? "Active player" : local ? "You" : "Connected"}</span></div><div className={`life-stepper ${local ? "" : "is-readonly"}`}>{local && <button aria-label="Lose one life" onClick={() => dispatch({ type: "CHANGE_LIFE", playerId, delta: -1 })}><Minus size={13} /></button>}<strong>{player.life}</strong>{local && <button aria-label="Gain one life" onClick={() => dispatch({ type: "CHANGE_LIFE", playerId, delta: 1 })}><Plus size={13} /></button>}<span>Life</span></div><div className="poison-stepper"><Skull size={13} /><button onClick={() => dispatch({ type: "CHANGE_POISON", playerId, delta: -1 })}>−</button><strong>{player.poison}</strong><button onClick={() => dispatch({ type: "CHANGE_POISON", playerId, delta: 1 })}>+</button></div><div className="damage-strip">{Object.entries(player.commanderDamage).map(([sourceId, value]) => <span key={sourceId} title={`Commander damage from ${state.players[sourceId].name}`}><button aria-label={`Remove commander damage from ${state.players[sourceId].name}`} onClick={() => dispatch({ type: "CHANGE_COMMANDER_DAMAGE", playerId, sourcePlayerId: sourceId, delta: -1 })}>−</button><b><i className="damage-source" style={{ borderColor: state.players[sourceId].accentColor }}>{state.players[sourceId].avatar}</i>{value}</b><button aria-label={`Add commander damage from ${state.players[sourceId].name}`} onClick={() => dispatch({ type: "CHANGE_COMMANDER_DAMAGE", playerId, sourcePlayerId: sourceId, delta: 1 })}>+</button></span>)}</div><ManaPool playerId={playerId} colors={player.manaColors} pool={player.manaPool} editable={local} dispatch={dispatch} /></header>;
+}
+
+function ManaPool({ playerId, colors, pool, editable, dispatch }: { playerId: string; colors: ManaColor[]; pool: Record<ManaColor, number>; editable: boolean; dispatch: (action: CommanderGameAction) => void }) {
+  return <div className="mana-pool" aria-label="Mana pool"><small>Mana</small>{colors.map((color) => <span className={`mana-${color.toLowerCase()}`} key={color}>{editable && <button aria-label={`Remove ${color} mana`} onClick={() => dispatch({ type: "CHANGE_MANA", playerId, color, delta: -1 })}>−</button>}<i>{color}</i><b>{pool[color]}</b>{editable && <button aria-label={`Add ${color} mana`} onClick={() => dispatch({ type: "CHANGE_MANA", playerId, color, delta: 1 })}>+</button>}</span>)}</div>;
 }
 
 function ZoneButton({ icon, label, count, zone, active, topCard, onHover, onClick, onContext, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }: { icon: React.ReactNode; label: string; count: number; zone: CommanderZone; active: boolean; topCard?: CommanderCardState; onHover?: (cardId: string | null) => void; onClick?: () => void; onContext?: (event: MouseEvent<HTMLButtonElement>) => void } & Pick<CommanderCardProps, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel">) {
@@ -530,7 +535,10 @@ function CardContextMenu({ card, battlefield, players, isCommander, dispatch, po
   const baseToughness = card.toughness ?? numericStat(record?.toughness);
   const shortcuts = cardTextShortcuts(record?.oracleText ?? "");
   const style = contextMenuStyle(position, 440);
-  function run(action: CommanderGameAction) { dispatch(action); onClose(); }
+  function run(action: CommanderGameAction) {
+    dispatch(action.type === "MOVE_CARD" && (action.zone === "battlefield" || action.zone === "stack") ? { ...action, manaCost: card.manaCost } : action);
+    onClose();
+  }
   function runShortcut(shortcut: ReturnType<typeof cardTextShortcuts>[number]) {
     if (shortcut.kind === "token") run({ type: "CREATE_TOKEN", playerId: card.ownerId, name: shortcut.name, count: shortcut.count, power: shortcut.power, toughness: shortcut.toughness });
     else if (shortcut.kind === "draw") run({ type: "DRAW_CARD", playerId: card.ownerId, count: shortcut.count });

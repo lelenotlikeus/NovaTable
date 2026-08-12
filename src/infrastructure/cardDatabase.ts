@@ -9,6 +9,7 @@ export interface CardRecord {
   name: string;
   nameLower: string;
   manaCost: string;
+  colorIdentity?: string[];
   typeLine: string;
   oracleText: string;
   power: string | null;
@@ -37,6 +38,7 @@ interface ScryfallCard {
   id?: string;
   name: string;
   mana_cost?: string;
+  color_identity?: string[];
   type_line?: string;
   oracle_text?: string;
   power?: string;
@@ -116,6 +118,7 @@ export function cardRecordFromScryfall(card: ScryfallCard, requestedName = card.
     name: firstFace?.name ?? card.name,
     nameLower: requestedName.toLocaleLowerCase(),
     manaCost: card.mana_cost ?? firstFace?.mana_cost ?? "",
+    colorIdentity: card.color_identity ?? [],
     typeLine: firstFace?.type_line ?? card.type_line ?? "",
     oracleText: card.oracle_text ?? firstFace?.oracle_text ?? "",
     power: firstFace?.power ?? card.power ?? null,
