@@ -19,7 +19,8 @@ function lobbyPlayer(user: UserProfile, host = false): LobbyPlayer {
     displayName: user.displayName, avatar: user.avatar,
     avatarImage: user.avatarImage, accentColor: user.accentColor,
     deckId: null, deckName: null, commander: null,
-    ready: false, host, bot: user.id.startsWith("bot-")
+    ready: false, host, bot: user.id.startsWith("bot-"), xp: user.xp, level: user.level,
+    gamesPlayed: user.gamesPlayed, gamesWon: user.gamesWon, honor: user.honor, badge: user.badge
   };
 }
 
@@ -84,7 +85,9 @@ export async function registerAccount(input: { email: string; username: string; 
   const account: StoredAccount = {
     id: id("user"), email, username, passwordHash: await hashPassword(input.password),
     displayName: input.displayName.trim(), avatar: input.displayName.trim().slice(0, 2).toUpperCase(),
-    presence: "online", theme: "dark", createdAt: Date.now()
+    presence: "online", theme: "dark", xp: 0, level: 1, gamesPlayed: 0, gamesWon: 0,
+    badge: username === "lele" ? "OWNER" : ["ale_", "jackomo"].includes(username) ? "PIONEER" : undefined,
+    createdAt: Date.now()
   };
   data.accounts.push(account);
   write(data);
@@ -92,9 +95,13 @@ export async function registerAccount(input: { email: string; username: string; 
   return publicUser(account);
 }
 
-export async function loginAccount(identity: string, password: string): Promise<UserProfile> {
+export class TwoFactorRequiredError extends Error {}
+
+export async function loginAccount(identity: string, password: string, code?: string): Promise<UserProfile> {
   if (remoteApiEnabled) {
-    const result = await remoteApi<{ user: UserProfile; token: string }>("/login", { method: "POST", body: JSON.stringify({ identity, password }) });
+    const result = await remoteApi<{ user?: UserProfile; token?: string; twoFactorRequired?: boolean }>("/login", { method: "POST", body: JSON.stringify({ identity, password, code }) });
+    if (result.twoFactorRequired) throw new TwoFactorRequiredError("Enter the code from your authenticator app.");
+    if (!result.user || !result.token) throw new Error("Login failed.");
     storeRemoteAccount(result.user, result.token);
     return result.user;
   }
@@ -109,6 +116,11 @@ export function currentUser(): UserProfile | null {
   const userId = localStorage.getItem(SESSION_KEY);
   const account = read().accounts.find((candidate) => candidate.id === userId);
   return account ? publicUser(account) : null;
+}
+
+export async function refreshCurrentProfile() {
+  if (!remoteApiEnabled) return currentUser();
+  return cacheRemoteProfile((await remoteApi<{ user: UserProfile }>("/me")).user);
 }
 
 export function logoutAccount() { localStorage.removeItem(SESSION_KEY); clearRemoteToken(); }
@@ -129,6 +141,44 @@ export function updateProfile(userId: string, patch: { displayName: string; avat
   write(data);
   if (remoteApiEnabled) void remoteApi("/profile", { method: "POST", body: JSON.stringify({ displayName: account.displayName, avatarImage: account.avatarImage, accentColor: account.accentColor, bio: account.bio, theme: account.theme }) });
   return publicUser(account);
+}
+
+export function cacheRemoteProfile(user: UserProfile) {
+  const data = read(); const account = data.accounts.find((candidate) => candidate.id === user.id);
+  if (account) Object.assign(account, user);
+  else if (user.email) data.accounts.push({ ...user, email: user.email, passwordHash: "remote", createdAt: Date.now() });
+  write(data); return user;
+}
+
+export async function changeAccountEmail(userId: string, email: string, password: string) {
+  if (remoteApiEnabled) return cacheRemoteProfile((await remoteApi<{ user: UserProfile }>("/account/email", { method: "POST", body: JSON.stringify({ email, password }) })).user);
+  const data = read(); const account = data.accounts.find((candidate) => candidate.id === userId);
+  if (!account || account.passwordHash !== await hashPassword(password)) throw new Error("Current password is incorrect.");
+  const normalized = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error("Enter a valid email address.");
+  if (data.accounts.some((candidate) => candidate.id !== userId && candidate.email === normalized)) throw new Error("An account already uses this email.");
+  account.email = normalized; write(data); return publicUser(account);
+}
+
+export async function changeAccountPassword(userId: string, currentPassword: string, newPassword: string) {
+  if (newPassword.length < 8) throw new Error("The new password must contain at least 8 characters.");
+  if (remoteApiEnabled) return remoteApi<{ ok: true }>("/account/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) });
+  const data = read(); const account = data.accounts.find((candidate) => candidate.id === userId);
+  if (!account || account.passwordHash !== await hashPassword(currentPassword)) throw new Error("Current password is incorrect.");
+  account.passwordHash = await hashPassword(newPassword); write(data); return { ok: true as const };
+}
+
+export function beginTwoFactorSetup(password: string) {
+  if (!remoteApiEnabled) throw new Error("Two-factor authentication requires NovaTable online services.");
+  return remoteApi<{ secret: string; otpauthUri: string }>("/account/2fa/setup", { method: "POST", body: JSON.stringify({ password }) });
+}
+
+export async function enableTwoFactor(password: string, secret: string, code: string) {
+  return cacheRemoteProfile((await remoteApi<{ user: UserProfile }>("/account/2fa/enable", { method: "POST", body: JSON.stringify({ password, secret, code }) })).user);
+}
+
+export async function disableTwoFactor(password: string, code: string) {
+  return cacheRemoteProfile((await remoteApi<{ user: UserProfile }>("/account/2fa/disable", { method: "POST", body: JSON.stringify({ password, code }) })).user);
 }
 
 export function parseDeckList(text: string): DeckCardEntry[] {
@@ -230,7 +280,7 @@ function storeRemoteAccount(user: UserProfile, token: string) {
   const existing = data.accounts.find((account) => account.id === user.id);
   if (existing) Object.assign(existing, user);
   else {
-    data.accounts.push({ ...user, passwordHash: "remote", createdAt: Date.now() });
+    data.accounts.push({ ...user, email: user.email ?? "", passwordHash: "remote", createdAt: Date.now() });
   }
   write(data);
   localStorage.setItem(SESSION_KEY, user.id);

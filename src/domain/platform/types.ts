@@ -11,7 +11,7 @@ export type LobbyFormat =
 
 export interface UserProfile {
   id: string;
-  email: string;
+  email?: string;
   username: string;
   displayName: string;
   avatar: string;
@@ -20,10 +20,17 @@ export interface UserProfile {
   bio?: string;
   theme?: InterfaceTheme;
   honor?: number;
+  xp?: number;
+  level?: number;
+  gamesPlayed?: number;
+  gamesWon?: number;
+  badge?: "OWNER" | "PIONEER";
+  twoFactorEnabled?: boolean;
   presence: Presence;
 }
 
 export interface StoredAccount extends UserProfile {
+  email: string;
   passwordHash: string;
   createdAt: number;
 }
@@ -59,6 +66,23 @@ export interface LobbyPlayer {
   ready: boolean;
   host: boolean;
   bot: boolean;
+  xp?: number;
+  level?: number;
+  gamesPlayed?: number;
+  gamesWon?: number;
+  honor?: number;
+  badge?: "OWNER" | "PIONEER";
+}
+
+export const XP_PER_GAME = 100;
+export const XP_WIN_BONUS = 250;
+
+export function levelForXp(xp = 0) {
+  return Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1;
+}
+
+export function xpForLevel(level: number) {
+  return Math.max(0, level - 1) ** 2 * 100;
 }
 
 export interface LobbyMessage {

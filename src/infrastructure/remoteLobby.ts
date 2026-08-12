@@ -65,4 +65,12 @@ export async function honorLeaderboard() {
   return remoteApiEnabled ? remoteApi<UserProfile[]>("/leaderboard") : [];
 }
 
+export async function publicProfile(username: string) {
+  return remoteApiEnabled ? remoteApi<UserProfile>(`/users/${encodeURIComponent(username)}`) : null;
+}
+
+export async function completeGame(gameId: string, winnerUserId?: string) {
+  return remoteApiEnabled ? post<{ user: UserProfile; winnerUserId: string | null }>(`/games/${gameId}/complete`, { winnerUserId }) : null;
+}
+
 export { remoteApiEnabled };

@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { ArrowRight, Check, Gamepad2, LockKeyhole, Mail, UserRound } from "lucide-react";
-import { loginAccount, registerAccount } from "../../infrastructure/localPlatform";
+import { loginAccount, registerAccount, TwoFactorRequiredError } from "../../infrastructure/localPlatform";
 import type { UserProfile } from "../../domain/platform/types";
 
 export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: UserProfile) => void }) {
@@ -10,6 +10,8 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: UserPr
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -17,10 +19,11 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: UserPr
     event.preventDefault(); setError(null); setLoading(true);
     try {
       const user = mode === "login"
-        ? await loginAccount(identity, password)
+        ? await loginAccount(identity, password, code)
         : await registerAccount({ email, username, displayName, password });
       onAuthenticated(user);
     } catch (cause) {
+      if (cause instanceof TwoFactorRequiredError) { setNeedsTwoFactor(true); setError(cause.message); return; }
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally { setLoading(false); }
   }
@@ -51,8 +54,8 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: UserPr
           <h2>{mode === "login" ? "Sign in to play" : "Create your account"}</h2>
           <p>{mode === "login" ? "Your friends and decks are waiting." : "One identity for every lobby and game."}</p>
           <div className="auth-tabs">
-            <button className={mode === "login" ? "is-active" : ""} onClick={() => { setMode("login"); setError(null); }}>Login</button>
-            <button className={mode === "register" ? "is-active" : ""} onClick={() => { setMode("register"); setError(null); }}>Register</button>
+            <button className={mode === "login" ? "is-active" : ""} onClick={() => { setMode("login"); setNeedsTwoFactor(false); setError(null); }}>Login</button>
+            <button className={mode === "register" ? "is-active" : ""} onClick={() => { setMode("register"); setNeedsTwoFactor(false); setError(null); }}>Register</button>
           </div>
           <form onSubmit={submit} className="auth-fields">
             {mode === "login" ? (
@@ -65,9 +68,10 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: UserPr
               </>
             )}
             <label>Password<span><LockKeyhole size={15} /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} required /></span></label>
+            {mode === "login" && needsTwoFactor && <label>Authenticator code<span><LockKeyhole size={15} /><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" required autoFocus /></span></label>}
             {error && <div className="inline-error" role="alert">{error}</div>}
             <button className="primary-button auth-submit" disabled={loading}>
-              {loading ? "Please wait…" : mode === "login" ? "Login" : "Create account"}<ArrowRight size={16} />
+              {loading ? "Please wait…" : mode === "login" ? needsTwoFactor ? "Verify & login" : "Login" : "Create account"}<ArrowRight size={16} />
             </button>
           </form>
           <small className="local-note">Development build: account data is stored locally and the API boundary is ready for a real backend.</small>

@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
@@ -53,16 +53,69 @@ function passwordHash(password, salt) {
   return scryptSync(password, salt, 64).toString("hex");
 }
 
+const XP_PER_GAME = 100;
+const XP_WIN_BONUS = 250;
+const levelForXp = (xp = 0) => Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1;
+const officialBadge = (username) => username === "lele" ? "OWNER" : ["ale_", "jackomo"].includes(username) ? "PIONEER" : undefined;
+
+function decorateUser(user) {
+  user.xp = Number(user.xp) || 0;
+  user.level = levelForXp(user.xp);
+  user.gamesPlayed = Number(user.gamesPlayed) || 0;
+  user.gamesWon = Number(user.gamesWon) || 0;
+  user.honor = Number(user.honor) || 0;
+  user.badge = officialBadge(user.username);
+  user.twoFactorEnabled = Boolean(user.twoFactorEnabled);
+  return user;
+}
+
+function publicUser(user) {
+  const { email: _email, twoFactorEnabled: _twoFactorEnabled, ...safe } = decorateUser(structuredClone(user));
+  return safe;
+}
+
+function realUser(user) {
+  return !/^(bot-|demo-|dev-)/.test(user.id) && !String(user.email || "").endsWith(".invalid");
+}
+
+function accountFor(userId) { return data.accounts.find((account) => account.user.id === userId); }
+function passwordMatches(account, password) {
+  const actual = Buffer.from(passwordHash(String(password || ""), account.salt), "hex");
+  const expected = Buffer.from(account.passwordHash, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function base32Encode(buffer) {
+  let bits = ""; for (const byte of buffer) bits += byte.toString(2).padStart(8, "0");
+  return bits.match(/.{1,5}/g)?.map((chunk) => BASE32[parseInt(chunk.padEnd(5, "0"), 2)]).join("") || "";
+}
+function base32Decode(value) {
+  const bits = value.toUpperCase().replace(/[^A-Z2-7]/g, "").split("").map((char) => BASE32.indexOf(char).toString(2).padStart(5, "0")).join("");
+  return Buffer.from((bits.match(/.{8}/g) || []).map((byte) => parseInt(byte, 2)));
+}
+function totp(secret, timestamp = Date.now()) {
+  const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(timestamp / 30_000)));
+  const hash = createHmac("sha1", base32Decode(secret)).update(counter).digest();
+  const offset = hash[19] & 15;
+  return String((hash.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+function validTotp(secret, code) {
+  return [-30_000, 0, 30_000].some((offset) => totp(secret, Date.now() + offset) === String(code || "").replace(/\s/g, ""));
+}
+
 function safeLobby(lobby) {
   return { ...structuredClone(lobby), password: lobby.password ? "__protected__" : "" };
 }
 
 function player(user, host = false) {
+  decorateUser(user);
   return {
     id: `seat-${randomUUID()}`, userId: user.id, username: user.username,
     displayName: user.displayName, avatar: user.avatar, avatarImage: user.avatarImage,
     accentColor: user.accentColor, deckId: null, deckName: null, commander: null,
-    cards: [], ready: false, host, bot: false
+    cards: [], ready: false, host, bot: false, xp: user.xp, level: user.level,
+    gamesPlayed: user.gamesPlayed, gamesWon: user.gamesWon, honor: user.honor, badge: user.badge
   };
 }
 
@@ -158,7 +211,7 @@ createServer(async (request, response) => {
       if (data.accounts.some((account) => account.user.email === email)) throw new Error("An account already uses this email.");
       if (data.accounts.some((account) => account.user.username === username)) throw new Error("This username is already taken.");
       const salt = randomBytes(16).toString("hex");
-      const user = { id: `user-${randomUUID()}`, email, username, displayName: String(input.displayName).trim().slice(0, 40), avatar: String(input.displayName).trim().slice(0, 2).toUpperCase(), presence: "online", theme: "dark" };
+      const user = decorateUser({ id: `user-${randomUUID()}`, email, username, displayName: String(input.displayName).trim().slice(0, 40), avatar: String(input.displayName).trim().slice(0, 2).toUpperCase(), presence: "online", theme: "dark" });
       data.accounts.push({ user, salt, passwordHash: passwordHash(String(input.password), salt), createdAt: Date.now() });
       const token = randomBytes(32).toString("hex"); data.sessions[token] = user.id; save();
       return send(response, 201, { user, token });
@@ -168,18 +221,25 @@ createServer(async (request, response) => {
       const input = await body(request); const identity = String(input.identity || "").trim().toLowerCase();
       const account = data.accounts.find((candidate) => candidate.user.email === identity || candidate.user.username === identity);
       if (!account) throw new Error("Email/username or password is incorrect.");
-      const actual = Buffer.from(passwordHash(String(input.password || ""), account.salt), "hex"); const expected = Buffer.from(account.passwordHash, "hex");
-      if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error("Email/username or password is incorrect.");
+      if (!passwordMatches(account, input.password)) throw new Error("Email/username or password is incorrect.");
+      if (account.twoFactorSecret && !validTotp(account.twoFactorSecret, input.code)) return send(response, 202, { twoFactorRequired: true });
       const token = randomBytes(32).toString("hex"); data.sessions[token] = account.user.id; save();
-      return send(response, 200, { user: account.user, token });
+      return send(response, 200, { user: decorateUser(account.user), token });
     }
 
     const user = sessionUser(request);
     if (url.pathname.startsWith("/api/") && !user) return send(response, 401, { error: "Please log in again." });
 
+    if (request.method === "GET" && url.pathname === "/api/me") return send(response, 200, { user: decorateUser(user) });
+
     if (request.method === "GET" && url.pathname === "/api/leaderboard") {
-      const users = data.accounts.map((account) => account.user).sort((a, b) => (b.honor || 0) - (a.honor || 0)).slice(0, 20);
+      const users = data.accounts.map((account) => account.user).filter(realUser).sort((a, b) => (b.honor || 0) - (a.honor || 0) || (b.xp || 0) - (a.xp || 0)).slice(0, 20).map(publicUser);
       return send(response, 200, users);
+    }
+
+    if (request.method === "GET" && parts[0] === "api" && parts[1] === "users" && parts.length === 3) {
+      const profile = data.accounts.find((account) => account.user.username === decodeURIComponent(parts[2]).toLowerCase())?.user;
+      return profile && realUser(profile) ? send(response, 200, publicUser(profile)) : send(response, 404, { error: "User not found." });
     }
 
     if (request.method === "POST" && url.pathname === "/api/profile") {
@@ -192,6 +252,46 @@ createServer(async (request, response) => {
         bio: String(input.bio || "").trim().slice(0, 240), theme: input.theme === "light" ? "light" : "dark"
       });
       save(); return send(response, 200, { user });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/account/email") {
+      const input = await body(request); const account = accountFor(user.id); const email = String(input.email || "").trim().toLowerCase();
+      if (!account || !passwordMatches(account, input.password)) throw new Error("Current password is incorrect.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address.");
+      if (data.accounts.some((candidate) => candidate !== account && candidate.user.email === email)) throw new Error("An account already uses this email.");
+      user.email = email; save(); return send(response, 200, { user: decorateUser(user) });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/account/password") {
+      const input = await body(request); const account = accountFor(user.id);
+      if (!account || !passwordMatches(account, input.currentPassword)) throw new Error("Current password is incorrect.");
+      if (String(input.newPassword || "").length < 8) throw new Error("The new password must contain at least 8 characters.");
+      account.salt = randomBytes(16).toString("hex"); account.passwordHash = passwordHash(String(input.newPassword), account.salt);
+      const currentToken = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+      for (const [token, userId] of Object.entries(data.sessions)) if (userId === user.id && token !== currentToken) delete data.sessions[token];
+      save(); return send(response, 200, { ok: true });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/account/2fa/setup") {
+      const input = await body(request); const account = accountFor(user.id);
+      if (!account || !passwordMatches(account, input.password)) throw new Error("Current password is incorrect.");
+      const secret = base32Encode(randomBytes(20));
+      const label = encodeURIComponent(`NovaTable:${user.username}`);
+      return send(response, 200, { secret, otpauthUri: `otpauth://totp/${label}?secret=${secret}&issuer=NovaTable` });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/account/2fa/enable") {
+      const input = await body(request); const account = accountFor(user.id); const secret = String(input.secret || "");
+      if (!account || !passwordMatches(account, input.password)) throw new Error("Current password is incorrect.");
+      if (!secret || !validTotp(secret, input.code)) throw new Error("The authenticator code is not valid.");
+      account.twoFactorSecret = secret; user.twoFactorEnabled = true; save(); return send(response, 200, { user: decorateUser(user) });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/account/2fa/disable") {
+      const input = await body(request); const account = accountFor(user.id);
+      if (!account || !passwordMatches(account, input.password)) throw new Error("Current password is incorrect.");
+      if (!account.twoFactorSecret || !validTotp(account.twoFactorSecret, input.code)) throw new Error("The authenticator code is not valid.");
+      delete account.twoFactorSecret; user.twoFactorEnabled = false; save(); return send(response, 200, { user: decorateUser(user) });
     }
 
     if (request.method === "GET" && url.pathname === "/api/lobbies") return send(response, 200, data.lobbies.filter((lobby) => lobby.privacy === "public" && lobby.status === "waiting").map(safeLobby));
@@ -217,6 +317,29 @@ createServer(async (request, response) => {
       const lobby = data.lobbies.find((candidate) => candidate.id === parts[2]);
       if (!lobby) return send(response, 404, { error: "Lobby no longer exists." });
       lobbyAction(lobby, user, await body(request)); save(); return send(response, 200, safeLobby(lobby));
+    }
+    if (request.method === "POST" && parts[0] === "api" && parts[1] === "games" && parts[3] === "complete") {
+      const lobby = data.lobbies.find((candidate) => candidate.id === parts[2]);
+      if (!lobby?.players.some((candidate) => candidate.userId === user.id)) return send(response, 403, { error: "You are not in this game." });
+      if (lobby.status !== "in-game" || !data.games[parts[2]]) throw new Error("This game has not started.");
+      const input = await body(request); const game = data.games[parts[2]]; game.progressAwarded ||= {};
+      const awardPlayed = (userId) => {
+        const account = accountFor(userId); if (!account || !realUser(account.user) || game.progressAwarded[userId]) return;
+        account.user.gamesPlayed = (account.user.gamesPlayed || 0) + 1; account.user.xp = (account.user.xp || 0) + XP_PER_GAME;
+        game.progressAwarded[userId] = true; decorateUser(account.user);
+      };
+      const winnerUserId = String(input.winnerUserId || "");
+      if (winnerUserId) {
+        if (lobby.hostId !== user.id) throw new Error("Only the host can record the winner.");
+        if (!lobby.players.some((candidate) => candidate.userId === winnerUserId) || !accountFor(winnerUserId)) throw new Error("Choose a real player from this game.");
+        if (game.winnerUserId && game.winnerUserId !== winnerUserId) throw new Error("The winner has already been recorded.");
+        if (!game.winnerUserId) {
+          for (const seat of lobby.players) awardPlayed(seat.userId);
+          const winner = accountFor(winnerUserId).user; winner.gamesWon = (winner.gamesWon || 0) + 1; winner.xp += XP_WIN_BONUS; decorateUser(winner);
+          game.winnerUserId = winnerUserId; game.completedAt = Date.now();
+        }
+      } else awardPlayed(user.id);
+      save(); return send(response, 200, { user: decorateUser(user), winnerUserId: game.winnerUserId || null });
     }
     if (request.method === "POST" && parts[0] === "api" && parts[1] === "games" && parts[3] === "honor") {
       const lobby = data.lobbies.find((candidate) => candidate.id === parts[2]);

@@ -30,7 +30,8 @@ import {
 } from "../../domain/commander/types";
 import { CardArtworkPicker, useCardRecord } from "../cards/CardArtwork";
 import { FullscreenButton } from "../shell/FullscreenButton";
-import { gameActions, remoteApiEnabled, sendGameAction, submitHonor } from "../../infrastructure/remoteLobby";
+import type { UserProfile } from "../../domain/platform/types";
+import { completeGame, gameActions, remoteApiEnabled, sendGameAction, submitHonor } from "../../infrastructure/remoteLobby";
 
 interface CardDrag {
   cardId: string;
@@ -80,7 +81,7 @@ export function CommanderBoard({
   lobbyName: string;
   gameId?: string;
   seed?: number;
-  onLeave: () => void;
+  onLeave: (updatedUser?: UserProfile) => void;
 }) {
   const [state, dispatch] = useReducer(
     commanderGameReducer,
@@ -99,6 +100,7 @@ export function CommanderBoard({
   const [dropZone, setDropZone] = useState<CommanderZone | null>(null);
   const [chatMessage, setChatMessage] = useState("");
   const [honorOpen, setHonorOpen] = useState(false);
+  const [winnerId, setWinnerId] = useState<string | null>(null);
   const battlefieldRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<CardDrag | null>(null);
   const arrowRef = useRef<ArrowDraft | null>(null);
@@ -121,6 +123,14 @@ export function CommanderBoard({
   const localCommander = state.cards[state.players[localId].commanderCardId];
   const previewCardId = hoveredCardId ?? pinnedCardId;
   const previewCard = previewCardId ? state.cards[previewCardId] ?? null : null;
+
+  async function finishGame(honorTarget?: string) {
+    let updatedUser: UserProfile | undefined;
+    try { updatedUser = (await completeGame(gameId!, state.playerOrder[0] === localId ? winnerId ?? undefined : undefined))?.user; }
+    catch { /* leaving still works if the progress service is temporarily unavailable */ }
+    if (honorTarget) try { await submitHonor(gameId!, honorTarget); } catch { /* Honor may already have been awarded */ }
+    onLeave(updatedUser);
+  }
 
   useEffect(() => {
     function dismiss(event: globalThis.PointerEvent) {
@@ -396,7 +406,7 @@ export function CommanderBoard({
     {dragVisual?.started && state.cards[dragVisual.cardId] && <div className="drag-card-preview" style={{ left: dragVisual.clientX - dragVisual.centerOffsetX, top: dragVisual.clientY - dragVisual.centerOffsetY }}><CommanderCard card={state.cards[dragVisual.cardId].zone === "library" && !state.cards[dragVisual.cardId].revealed ? { ...state.cards[dragVisual.cardId], faceDown: true } : state.cards[dragVisual.cardId]} selected={false} previewOnly /></div>}
     {artworkCardId && state.cards[artworkCardId] && <CardArtworkPicker cardName={state.cards[artworkCardId].name} onSelect={(printing) => action({ type: "SET_CARD_ARTWORK", cardId: artworkCardId, artworkUrl: printing?.imageUrl ?? null, backArtworkUrl: printing?.otherFaceImageUrl })} onClose={() => setArtworkCardId(null)} />}
     {gamePrompt && <GamePromptModal config={gamePrompt} onClose={() => setGamePrompt(null)} />}
-    {honorOpen && <div className="game-prompt-backdrop" role="presentation"><section className="game-prompt honor-prompt" role="dialog" aria-modal="true" aria-label="Award Honor"><header><div><span className="kicker">End of game</span><strong>Award Honor</strong><p>Who made this game especially enjoyable? You cannot vote for yourself.</p></div></header><section>{state.playerOrder.filter((playerId) => playerId !== localId && !playerId.startsWith("bot-")).map((playerId) => <button key={playerId} onClick={() => { void submitHonor(gameId!, playerId).finally(onLeave); }}><span className="avatar">{state.players[playerId].avatar}</span><strong>{state.players[playerId].name}</strong><small>Give +1 Honor</small></button>)}</section><footer><button className="secondary-button" onClick={onLeave}>Skip and leave</button></footer></section></div>}
+    {honorOpen && <div className="game-prompt-backdrop" role="presentation"><section className="game-prompt honor-prompt" role="dialog" aria-modal="true" aria-label="End game"><header><div><span className="kicker">End of game</span><strong>Record the result</strong><p>Every real player earns 100 XP. The winner earns 250 bonus XP.</p></div></header>{state.playerOrder[0] === localId && <><small className="honor-label">Winner (optional)</small><section>{state.playerOrder.filter((playerId) => !playerId.startsWith("bot-")).map((playerId) => <button className={winnerId === playerId ? "is-selected" : ""} key={`winner-${playerId}`} onClick={() => setWinnerId(playerId)}><span className="avatar">{state.players[playerId].avatar}</span><strong>{state.players[playerId].name}</strong><small>{winnerId === playerId ? "Winner selected" : "Select winner"}</small></button>)}</section></>}<small className="honor-label">Award Honor</small><section>{state.playerOrder.filter((playerId) => playerId !== localId && !playerId.startsWith("bot-")).map((playerId) => <button key={playerId} onClick={() => void finishGame(playerId)}><span className="avatar">{state.players[playerId].avatar}</span><strong>{state.players[playerId].name}</strong><small>Give +1 Honor & leave</small></button>)}</section><footer><button className="secondary-button" onClick={() => void finishGame()}>Save result & leave</button></footer></section></div>}
     <ArrowLayer arrows={state.arrows} attachments={Object.values(state.cards).filter((card) => card.attachedTo).map((card) => ({ id: `attachment-${card.id}`, from: { kind: "card", id: card.id }, to: { kind: "card", id: card.attachedTo! } }))} draft={arrowDraft} onRemove={(arrowId) => action({ type: "REMOVE_ARROW", arrowId })} />
   </main>;
 }
