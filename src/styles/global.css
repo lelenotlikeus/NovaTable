@@ -3238,16 +3238,21 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .opponent-battlefield::before { position: absolute; top: 8px; left: 10px; color: rgba(132,144,155,.42); font-size: 8px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; content: "Battlefield"; }
 .opponent-hand-count { position: absolute; z-index: 6; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; color: var(--nt-muted); background: rgba(8,12,17,.88); box-shadow: 0 4px 12px rgba(0,0,0,.35); font-size: 9px; pointer-events: auto; }
 .opponent-hand-count strong { color: var(--nt-text); font-size: 12px; }.opponent-hand-count b { color: var(--nt-green); font-size: 8px; }
-.local-board { grid-column: 2; grid-row: 3; grid-template-rows: auto minmax(0, 1fr) calc(var(--card-size-hand) * 1.4 + 24px); }
-.local-playmat { grid-template-columns: clamp(204px, 13vw, 220px) minmax(0, 1fr); }
-.local-zones { --zone-card-size: clamp(48px, 4.8vh, 60px); position: relative; z-index: 2; min-width: 204px; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) minmax(0, .82fr); gap: 4px; padding: 5px; overflow: hidden; }
-.local-zones > *, .commander-zone { min-height: 0; padding: 2px; }
-.local-zones .commander-zone-button { overflow: visible; border-color: transparent; background: transparent; box-shadow: none; }
+.local-board { grid-column: 2; grid-row: 3; grid-template-columns: 76px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) calc(var(--card-size-hand) * 1.4 + 24px); }
+.local-board > .player-hud { grid-column: 1 / -1; grid-row: 1; }
+.local-playmat { display: contents; }
+.local-zones { --zone-card-size: clamp(38px, 5vh, 54px); position: relative; z-index: 2; display: grid; min-width: 0; min-height: 0; grid-column: 1; grid-row: 2 / 4; grid-template-columns: 1fr; grid-template-rows: repeat(3, auto) auto; align-content: center; justify-items: center; gap: 5px; padding: 5px; overflow: hidden; border-right: 1px solid var(--nt-line); }
+.local-zones .commander-zone-button { width: 100%; height: auto; min-height: 0; overflow: visible; padding: 1px; border-color: transparent; background: transparent; box-shadow: none; }
 .local-zones .commander-zone-button:hover { border-color: rgba(98,230,187,.22); background: rgba(98,230,187,.045); }
 .local-zones .zone-pile > strong { right: 2px; bottom: 2px; min-width: 24px; height: 24px; border-width: 1px; }
-.commander-zone > small { margin-bottom: 2px; font-size: 8px; }
-.commander-zone .commander-card-shell { width: 36px; height: 50px; }
-.tax-control { gap: 2px; }.tax-control button { width: 15px; height: 15px; }
+.local-zones .zone-label { font-size: 7px; line-height: 9px; }
+.commander-zone { position: relative; display: block; width: var(--zone-card-size); height: calc(var(--zone-card-size) * 1.4); min-height: 0; padding: 0; overflow: visible; border: 0; background: transparent; }
+.commander-zone > small { position: absolute; z-index: 5; top: 3px; right: 3px; left: 3px; display: flex; align-items: center; justify-content: flex-end; margin: 0; font-size: 0; pointer-events: none; }
+.commander-zone .commander-card-shell { width: 100%; height: 100%; }
+.commander-zone .empty-command-zone { width: 100%; height: 100%; }
+.tax-control { gap: 1px; pointer-events: auto; }.tax-control button { width: 14px; height: 14px; border-color: rgba(255,255,255,.25); background: rgba(8,12,17,.88); }.tax-control b { padding: 2px 3px; border-radius: 4px; background: rgba(8,12,17,.88); font-size: 7px; }
+.battlefield-drop { grid-column: 2; grid-row: 2; }
+.local-hand { grid-column: 2; grid-row: 3; }
 .shared-center { position: relative; z-index: 20; top: auto; left: auto; width: auto; min-height: 34px; grid-column: 1 / -1; grid-row: 2; padding: 3px 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; background: rgba(7,11,15,.92); box-shadow: 0 5px 18px rgba(0,0,0,.45); transform: none; }
 .shared-center .phase-track { min-width: 0; flex: 1; }
 .local-hand > div { gap: 4px; }
@@ -3257,7 +3262,7 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .zone-browser { width: min(980px, calc(100vw - clamp(286px, 17vw, 330px) - 42px)); max-height: calc(100vh - 94px); }
 .zone-browser .commander-card__image, .artwork-grid img { object-fit: contain; background: #05080b; }
 .damage-source { display: grid; width: 18px; height: 18px; place-items: center; border: 1px solid; border-radius: 50%; color: #eef5f2; font-size: 7px; font-style: normal; }
-@media (max-height: 850px) { .commander-screen { --card-size-local: 70px; --card-size-opponent: 54px; --card-size-hand: 62px; }.opponent-board { grid-template-columns: 112px minmax(0, 1fr); }.local-playmat { grid-template-columns: 204px minmax(0, 1fr); }.local-zones { --zone-card-size: 48px; } }
+@media (max-height: 850px) { .commander-screen { --card-size-local: 70px; --card-size-opponent: 54px; --card-size-hand: 62px; }.opponent-board { grid-template-columns: 112px minmax(0, 1fr); }.local-board { grid-template-columns: 68px minmax(0, 1fr); }.local-zones { --zone-card-size: clamp(36px, 4.8vh, 42px); gap: 3px; padding: 3px; }.local-zones .zone-label { line-height: 7px; } }
 .commander-card-shell.is-attached { filter: brightness(.9) drop-shadow(0 8px 12px rgba(0,0,0,.55)); }
 .honor-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; }.honor-row > b { color: var(--nt-muted); font-size: 10px; }.honor-row > .person-row { padding: 0; }.honor-row > strong { color: #e1cf8d; font-size: 13px; }
 .honor-prompt > section { display: grid; gap: 8px; }.honor-prompt > section > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--nt-line); border-radius: 9px; color: var(--nt-text); background: rgba(255,255,255,.025); text-align: left; }.honor-prompt > section > button:hover { border-color: var(--nt-green); }.honor-prompt > section > button small { color: #e1cf8d; }
