@@ -56,6 +56,17 @@ describe("Commander board interactions", () => {
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("7");
   });
 
+  it("lets every player advance phases but only the next player claim a turn from end", () => {
+    const nextPlayerLocal = players.map((player, index) => ({ ...player, local: index === 1 }));
+    render(<CommanderBoard players={nextPlayerLocal} startingLife={40} lobbyName="Commander Night" onLeave={() => undefined} />);
+    for (let index = 0; index < 10; index++) fireEvent.click(screen.getByRole("button", { name: "Next phase" }));
+    const claim = screen.getByRole("button", { name: "Start your turn" });
+    expect(claim).toBeEnabled();
+    fireEvent.click(claim);
+    expect(document.querySelector(".turn-status strong")).toHaveTextContent("Mira");
+    expect(document.querySelector(".turn-status i")).toHaveTextContent("untap");
+  });
+
   it("suppresses empty-table context menus and visually stacks attachments under their target", () => {
     renderGame();
     expect(fireEvent.contextMenu(document.querySelector(".commander-table")!)).toBe(false);

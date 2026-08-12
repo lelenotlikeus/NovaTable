@@ -105,8 +105,11 @@ export function CommanderBoard({
   const suppressClickUntil = useRef(0);
   const suppressContextUntil = useRef(0);
   const gameSequence = useRef(0);
+  const optimisticActions = useRef(new Set<string>());
   const localId = state.localPlayerId;
   const opponents = state.playerOrder.filter((id) => id !== localId);
+  const nextPlayerId = state.playerOrder[(state.playerOrder.indexOf(state.activePlayerId) + 1) % state.playerOrder.length];
+  const canAdvancePhase = state.phase !== "end" || nextPlayerId === localId;
   const localLibrary = cardsInZone(state, localId, "library");
   const localHand = cardsInZone(state, localId, "hand");
   const localBattlefield = cardsInZone(state, localId, "battlefield");
@@ -143,7 +146,10 @@ export function CommanderBoard({
       if (busy) return; busy = true;
       try {
         const events = await gameActions(gameId, gameSequence.current);
-        for (const event of events) { dispatch(event.action); gameSequence.current = Math.max(gameSequence.current, event.sequence); }
+        for (const event of events) {
+          if (!event.clientActionId || !optimisticActions.current.delete(event.clientActionId)) dispatch(event.action);
+          gameSequence.current = Math.max(gameSequence.current, event.sequence);
+        }
       } catch { /* the next poll retries transient failures */ }
       finally { busy = false; }
     };
@@ -153,8 +159,11 @@ export function CommanderBoard({
   }, [gameId]);
 
   function action(value: CommanderGameAction) {
-    if (gameId && remoteApiEnabled) void sendGameAction(gameId, value);
-    else dispatch(value);
+    if (!gameId || !remoteApiEnabled) return dispatch(value);
+    const clientActionId = globalThis.crypto?.randomUUID?.() ?? `action-${Date.now()}-${Math.random()}`;
+    const optimistic = value.type !== "NEXT_PHASE" && value.type !== "NEXT_TURN" && value.type !== "SET_PHASE";
+    if (optimistic) { optimisticActions.current.add(clientActionId); dispatch(value); }
+    void sendGameAction(gameId, value, clientActionId).catch(() => optimisticActions.current.delete(clientActionId));
   }
 
   function startDrag(card: CommanderCardState, event: PointerEvent<HTMLElement>) {
@@ -372,7 +381,7 @@ export function CommanderBoard({
       <CardPreview card={previewCard} canPeek={previewCard?.ownerId === localId} pinned={Boolean(pinnedCardId && previewCardId === pinnedCardId)} onUnpin={() => setPinnedCardId(null)} />
       <section className="table-tools">
         <header>Quick actions</header>
-        <div><button onClick={drawCards}><Hand size={15} />Draw X</button><button onClick={createCustomToken}><CopyPlus size={15} />Create token</button><button onClick={millCards}><Skull size={15} />Mill X</button><button onClick={lookAtTop}><Eye size={15} />Look / Scry X</button><button onClick={() => action({ type: "SHUFFLE_LIBRARY", playerId: localId, seed: Date.now() })}><Shuffle size={15} />Shuffle</button><button onClick={mulligan}><RotateCcw size={15} />Mulligan</button><button onClick={() => action({ type: "UNTAP_ALL", playerId: localId })}><Sparkles size={15} />Untap all</button><button onClick={rollDie}><Dices size={15} />Roll die</button><button onClick={() => action({ type: "FLIP_COIN", playerId: localId, result: Math.random() < .5 ? "heads" : "tails" })}><Coins size={15} />Flip coin</button><button onClick={() => action({ type: "CLEAR_ARROWS" })}><X size={15} />Clear arrows</button><button className="next-phase" disabled={state.activePlayerId !== localId} title={state.activePlayerId !== localId ? `Waiting for ${state.players[state.activePlayerId].name}` : "Advance phase"} onClick={() => action({ type: "NEXT_PHASE" })}>Next phase <ChevronRight size={16} /></button></div>
+        <div><button onClick={drawCards}><Hand size={15} />Draw X</button><button onClick={createCustomToken}><CopyPlus size={15} />Create token</button><button onClick={millCards}><Skull size={15} />Mill X</button><button onClick={lookAtTop}><Eye size={15} />Look / Scry X</button><button onClick={() => action({ type: "SHUFFLE_LIBRARY", playerId: localId, seed: Date.now() })}><Shuffle size={15} />Shuffle</button><button onClick={mulligan}><RotateCcw size={15} />Mulligan</button><button onClick={() => action({ type: "UNTAP_ALL", playerId: localId })}><Sparkles size={15} />Untap all</button><button onClick={rollDie}><Dices size={15} />Roll die</button><button onClick={() => action({ type: "FLIP_COIN", playerId: localId, result: Math.random() < .5 ? "heads" : "tails" })}><Coins size={15} />Flip coin</button><button onClick={() => action({ type: "CLEAR_ARROWS" })}><X size={15} />Clear arrows</button><button className="next-phase" disabled={!canAdvancePhase} title={state.phase === "end" ? nextPlayerId === localId ? "Claim your turn" : `Waiting for ${state.players[nextPlayerId].name} to claim the next turn` : "Advance the table to the next phase"} onClick={() => action({ type: "NEXT_PHASE" })}>{state.phase === "end" && nextPlayerId === localId ? "Start your turn" : "Next phase"} <ChevronRight size={16} /></button></div>
       </section>
       <section className="game-log"><header><CircleDot size={14} /><strong>Game log & chat</strong></header><div>{[...state.log].reverse().slice(0, 30).map((entry) => <p key={entry.id}>{entry.message}</p>)}</div><form onSubmit={(event) => { event.preventDefault(); action({ type: "CHAT_MESSAGE", playerId: localId, text: chatMessage }); setChatMessage(""); }}><input aria-label="Game chat message" value={chatMessage} onChange={(event) => setChatMessage(event.target.value)} placeholder="Message the table" maxLength={500} /><button aria-label="Send game message"><Send size={13} /></button></form></section>
     </aside>

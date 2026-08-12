@@ -49,12 +49,12 @@ export async function onlineLeaveLobby(lobbyId: string, userId: string) {
   else local.leaveLobby(lobbyId, userId);
 }
 
-export async function sendGameAction(gameId: string, action: CommanderGameAction) {
-  return post<{ sequence: number }>(`/games/${gameId}/actions`, { action });
+export async function sendGameAction(gameId: string, action: CommanderGameAction, clientActionId?: string) {
+  return post<{ sequence: number }>(`/games/${gameId}/actions`, { action, clientActionId });
 }
 
 export async function gameActions(gameId: string, after: number) {
-  return remoteApi<Array<{ sequence: number; action: CommanderGameAction }>>(`/games/${gameId}/actions?after=${after}`);
+  return remoteApi<Array<{ sequence: number; action: CommanderGameAction; clientActionId?: string }>>(`/games/${gameId}/actions?after=${after}`);
 }
 
 export async function submitHonor(gameId: string, targetUserId: string) {

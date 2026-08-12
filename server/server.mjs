@@ -238,22 +238,25 @@ createServer(async (request, response) => {
         const input = await body(request); if (!input.action?.type) throw new Error("Invalid game action.");
         const selfOnly = new Set(["DRAW_CARD", "MOVE_ZONE_CARDS", "UNTAP_ALL", "CHANGE_LIFE", "CHANGE_POISON", "CHANGE_COMMANDER_TAX", "CHANGE_COMMANDER_DAMAGE", "CHANGE_MANA", "CREATE_TOKEN", "ROLL_DIE", "FLIP_COIN", "CHAT_MESSAGE", "SHUFFLE_LIBRARY", "MILL", "MULLIGAN"]);
         if (selfOnly.has(input.action.type) && input.action.playerId !== user.id) return send(response, 403, { error: "You may only change your own player state." });
-        const turnActions = new Set(["SET_PHASE", "NEXT_PHASE", "NEXT_TURN"]);
         game.activePlayerId ||= lobby.players[0].userId; game.phaseIndex ||= 0;
-        if (turnActions.has(input.action.type) && game.activePlayerId !== user.id) return send(response, 403, { error: "Only the active player can advance the turn." });
         const phases = ["untap", "upkeep", "draw", "main-1", "begin-combat", "attackers", "blockers", "combat-damage", "end-combat", "main-2", "end"];
-        if (input.action.type === "SET_PHASE") game.phaseIndex = Math.max(0, phases.indexOf(input.action.phase));
-        if (input.action.type === "NEXT_PHASE" && ++game.phaseIndex >= phases.length) {
-          game.phaseIndex = 0;
-          const activeIndex = lobby.players.findIndex((candidate) => candidate.userId === game.activePlayerId);
-          game.activePlayerId = lobby.players[(activeIndex + 1) % lobby.players.length].userId;
+        const activeIndex = lobby.players.findIndex((candidate) => candidate.userId === game.activePlayerId);
+        const nextPlayerId = lobby.players[(activeIndex + 1) % lobby.players.length].userId;
+        if (input.action.type === "SET_PHASE") {
+          if (game.activePlayerId !== user.id) return send(response, 403, { error: "Only the active player can choose a phase directly." });
+          game.phaseIndex = Math.max(0, phases.indexOf(input.action.phase));
         }
+        if (input.action.type === "NEXT_PHASE" && game.phaseIndex === phases.length - 1) {
+          if (user.id !== nextPlayerId) return send(response, 403, { error: "Only the next player can claim the turn from the end step." });
+          game.phaseIndex = 0;
+          game.activePlayerId = nextPlayerId;
+        } else if (input.action.type === "NEXT_PHASE") game.phaseIndex++;
         if (input.action.type === "NEXT_TURN") {
+          if (game.phaseIndex !== phases.length - 1 || user.id !== nextPlayerId) return send(response, 403, { error: "Use Next phase from the previous player's end step to claim your turn." });
           game.phaseIndex = 0;
-          const activeIndex = lobby.players.findIndex((candidate) => candidate.userId === game.activePlayerId);
-          game.activePlayerId = lobby.players[(activeIndex + 1) % lobby.players.length].userId;
+          game.activePlayerId = nextPlayerId;
         }
-        const event = { sequence: ++game.sequence, action: input.action }; game.actions.push(event); game.actions = game.actions.slice(-5000); save();
+        const event = { sequence: ++game.sequence, action: input.action, ...(input.clientActionId ? { clientActionId: String(input.clientActionId).slice(0, 100) } : {}) }; game.actions.push(event); game.actions = game.actions.slice(-5000); save();
         return send(response, 201, { sequence: event.sequence });
       }
     }

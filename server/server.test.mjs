@@ -44,10 +44,15 @@ try {
   await request(`/games/${lobby.id}/actions`, users[0].token, { action: { type: "DRAW_CARD", playerId: users[0].user.id } });
   await request(`/games/${lobby.id}/actions`, users[0].token, { action: { type: "CHANGE_MANA", playerId: users[0].user.id, color: "U", delta: 1 } });
   await assert.rejects(request(`/games/${lobby.id}/actions`, users[1].token, { action: { type: "CHANGE_MANA", playerId: users[0].user.id, color: "U", delta: 1 } }), /own player state/);
-  await assert.rejects(request(`/games/${lobby.id}/actions`, users[1].token, { action: { type: "NEXT_PHASE" } }), /Only the active player/);
   await request(`/games/${lobby.id}/actions`, users[1].token, { action: { type: "TAP_CARD", cardId: `${users[0].user.id}-card-0` } });
   const events = await request(`/games/${lobby.id}/actions?after=0`, users[1].token);
   assert.deepEqual(events.map((event) => event.action.type), ["DRAW_CARD", "CHANGE_MANA", "TAP_CARD"]);
+  for (let index = 0; index < 10; index++) await request(`/games/${lobby.id}/actions`, users[2].token, { action: { type: "NEXT_PHASE" } });
+  await assert.rejects(request(`/games/${lobby.id}/actions`, users[0].token, { action: { type: "NEXT_PHASE" } }), /Only the next player/);
+  await assert.rejects(request(`/games/${lobby.id}/actions`, users[2].token, { action: { type: "NEXT_PHASE" } }), /Only the next player/);
+  await request(`/games/${lobby.id}/actions`, users[1].token, { action: { type: "NEXT_PHASE" } });
+  const turnEvents = await request(`/games/${lobby.id}/actions?after=3`, users[0].token);
+  assert.equal(turnEvents.length, 11);
   const honor = await request(`/games/${lobby.id}/honor`, users[1].token, { targetUserId: users[0].user.id });
   assert.equal(honor.honor, 1);
   await assert.rejects(request(`/games/${lobby.id}/honor`, users[1].token, { targetUserId: users[0].user.id }), /already awarded/);
