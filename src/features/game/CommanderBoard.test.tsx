@@ -32,6 +32,9 @@ describe("Commander board interactions", () => {
       expect(zones).toHaveTextContent("Exile");
     });
     expect(document.querySelector(".opponent-board > footer")).toBeNull();
+    expect(document.querySelector(".hidden-hand")).toBeNull();
+    expect(document.querySelectorAll(".opponent-hand-count")).toHaveLength(3);
+    document.querySelectorAll<HTMLElement>(".opponent-battlefield").forEach((battlefield) => expect(battlefield.querySelector(".opponent-hand-count")).toBeInTheDocument());
     expect(document.querySelectorAll(".mana-pool")).toHaveLength(4);
     expect(document.querySelectorAll(".player-hud__name > div > .mana-pool")).toHaveLength(4);
     expect(document.querySelector(".player-hud.is-local .mana-g img")).toHaveAttribute("src", "https://svgs.scryfall.io/card-symbols/G.svg");

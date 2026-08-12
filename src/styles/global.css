@@ -3217,8 +3217,11 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 
 /* Four equal Commander seats: every player gets the same table footprint. */
 .commander-screen { --card-size-local: clamp(74px, 4vw, 88px); --card-size-opponent: clamp(58px, 3.2vw, 70px); --card-size-hand: clamp(76px, 4.1vw, 84px); }
-.commander-table { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px; overflow: hidden; padding: 6px; }
+.commander-table { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; overflow: hidden; padding: 6px; }
 .opponents-grid { display: contents; }
+.opponents-grid > .opponent-board:nth-child(1) { grid-column: 1; grid-row: 1; }
+.opponents-grid > .opponent-board:nth-child(2) { grid-column: 2; grid-row: 1; }
+.opponents-grid > .opponent-board:nth-child(3) { grid-column: 1; grid-row: 3; }
 .opponent-board, .local-board { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--nt-line); border-radius: 10px; background: rgba(255,255,255,.015); }
 .opponent-board { display: grid; grid-template-columns: 126px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .opponent-board > .player-hud { grid-column: 1 / -1; }
@@ -3230,14 +3233,15 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .opponent-zones > button span { overflow: hidden; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .opponent-zones > button strong { color: var(--nt-text); font-size: 12px; }
 .opponent-zones > button b { position: absolute; right: 5px; bottom: 2px; max-width: 78px; overflow: hidden; color: var(--nt-green); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
-.opponent-public { display: grid; min-width: 0; min-height: 0; grid-column: 2; grid-row: 2; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 54px; gap: 0; padding: 0; }
+.opponent-public { display: grid; min-width: 0; min-height: 0; grid-column: 2; grid-row: 2; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0; padding: 0; }
 .opponent-battlefield { min-width: 0; min-height: 0; margin: 6px; overflow: hidden; }
 .opponent-battlefield::before { position: absolute; top: 8px; left: 10px; color: rgba(132,144,155,.42); font-size: 8px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; content: "Battlefield"; }
-.hidden-hand { min-width: 0; min-height: 0; border-top: 1px solid var(--nt-line); background: rgba(8,12,17,.38); }
-.local-board { grid-template-rows: auto minmax(0, 1fr) calc(var(--card-size-hand) * 1.4 + 35px); }
+.opponent-hand-count { position: absolute; z-index: 6; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; color: var(--nt-muted); background: rgba(8,12,17,.88); box-shadow: 0 4px 12px rgba(0,0,0,.35); font-size: 9px; pointer-events: auto; }
+.opponent-hand-count strong { color: var(--nt-text); font-size: 12px; }.opponent-hand-count b { color: var(--nt-green); font-size: 8px; }
+.local-board { grid-column: 2; grid-row: 3; grid-template-rows: auto minmax(0, 1fr) calc(var(--card-size-hand) * 1.4 + 35px); }
 .local-playmat { grid-template-columns: clamp(164px, 12vw, 184px) minmax(0, 1fr); }
 .local-zones { --zone-card-size: clamp(48px, 4.8vh, 60px); position: relative; z-index: 2; min-width: 164px; padding: 8px 12px 12px 8px; overflow: visible; }
-.shared-center { position: absolute; z-index: 20; top: 50%; left: 50%; width: min(96%, 980px); min-height: 30px; padding: 3px 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; background: rgba(7,11,15,.92); box-shadow: 0 5px 18px rgba(0,0,0,.45); transform: translate(-50%, -50%); }
+.shared-center { position: relative; z-index: 20; top: auto; left: auto; width: auto; min-height: 34px; grid-column: 1 / -1; grid-row: 2; padding: 3px 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; background: rgba(7,11,15,.92); box-shadow: 0 5px 18px rgba(0,0,0,.45); transform: none; }
 .shared-center .phase-track { min-width: 0; flex: 1; }
 .local-hand > div { gap: 4px; }
 .phase-track { min-width: 0; justify-content: flex-start; overflow-x: auto; scrollbar-width: thin; }
