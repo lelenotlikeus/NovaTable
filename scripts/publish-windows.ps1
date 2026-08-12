@@ -23,6 +23,7 @@ Copy-Item (Join-Path $projectRoot "site\*") $release -Recurse -Force
 Copy-Item (Join-Path $projectRoot "public\novatable-logo.svg") $release -Force
 Copy-Item (Join-Path $projectRoot "docs\assets\commander-gameplay.png") $release -Force
 Copy-Item $bundle (Join-Path $downloads "NovaTable_${version}_x64-setup.exe") -Force
+Copy-Item $bundle (Join-Path $downloads "NovaTable-latest_x64-setup.exe") -Force
 
 $manifest = @{
   version = $version
@@ -35,7 +36,8 @@ $manifest = @{
     }
   }
 }
-$manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $updates "latest.json") -Encoding utf8
+$manifestJson = $manifest | ConvertTo-Json -Depth 5
+[System.IO.File]::WriteAllText((Join-Path $updates "latest.json"), $manifestJson, [System.Text.UTF8Encoding]::new($false))
 
 ssh -i (Join-Path $env:USERPROFILE ".ssh\novatable_deploy") root@162.243.65.125 "mkdir -p /opt/novatable/public/downloads /opt/novatable/public/updates"
 scp -i (Join-Path $env:USERPROFILE ".ssh\novatable_deploy") -r "$release\*" "root@162.243.65.125:/opt/novatable/public/"
