@@ -26,6 +26,11 @@ describe("NovaTable vertical slice", () => {
     fireEvent.click(screen.getByRole("button", { name: /create lobby/i }));
 
     expect(await screen.findByRole("heading", { name: "Commander Night" })).toBeInTheDocument();
+    expect(screen.queryByText("Games")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "@tablemage" }));
+    expect(screen.getByText("Games")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "@tablemage" }));
+    expect(screen.queryByText("Games")).not.toBeInTheDocument();
     for (let index = 0; index < 3; index++) {
       fireEvent.click(screen.getAllByRole("button", { name: /add dev player/i })[0]);
     }
@@ -65,8 +70,10 @@ describe("NovaTable vertical slice", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } });
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
     expect(await screen.findByText("Bring the pod together.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /profile & settings/i }));
+    expect(document.querySelectorAll(".security-row")).toHaveLength(3);
     fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Nova Planeswalker" } });
     fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "Commander player" } });
     fireEvent.change(screen.getByLabelText("Interface accent"), { target: { value: "#ff7755" } });
