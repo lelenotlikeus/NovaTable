@@ -39,6 +39,13 @@ describe("NovaTable vertical slice", () => {
 
     expect(await screen.findByText("Commander · 4 players")).toBeInTheDocument();
     expect(screen.getAllByText("40")).toHaveLength(4);
+    expect(document.querySelector('[data-player-target="bot-1"] .mana-pool')).toHaveTextContent("0000");
+    expect(document.querySelector('[data-player-target="bot-1"] .mana-w')).toBeNull();
+    expect(document.querySelector('[data-player-target="bot-1"] .mana-u')).toBeInTheDocument();
+    expect(document.querySelector('[data-player-target="bot-2"] .mana-r')).toBeInTheDocument();
+    expect(document.querySelector('[data-player-target="bot-2"] .mana-g')).toBeNull();
+    expect(document.querySelector('[data-player-target="bot-3"] .mana-u')).toBeNull();
+    expect(document.querySelector('[data-player-target="bot-3"] .mana-g')).toBeInTheDocument();
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("Your hand 0");
     fireEvent.click(screen.getByRole("button", { name: "Draw 7" }));
     expect(document.querySelector(".local-hand > span")).toHaveTextContent("Your hand 7");

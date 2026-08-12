@@ -21,6 +21,18 @@ import {
 
 type View = "home" | "friends" | "lobbies" | "decks" | "profile" | "create";
 
+const devCommanderColors: Record<string, string[]> = {
+  "Muldrotha, the Gravetide": ["U", "B", "G"],
+  "Isshin, Two Heavens as One": ["W", "B", "R"],
+  "Lathril, Blade of the Elves": ["B", "G"]
+};
+const basicLand: Record<string, string> = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest" };
+
+function developmentDeck(commander: string): DeckCardEntry[] {
+  const colors = devCommanderColors[commander] ?? ["C"];
+  return colors.map((color, index) => ({ name: basicLand[color] ?? "Wastes", quantity: Math.floor(99 / colors.length) + (index < 99 % colors.length ? 1 : 0) }));
+}
+
 export function PlatformApp({
   user,
   onLogout,
@@ -69,7 +81,9 @@ export function PlatformApp({
           onLeave={() => { void onlineLeaveLobby(activeLobby.id, user.id); setActiveLobby(null); setView("home"); refresh(); }}
           onStart={async (lobby) => {
             const localDeck = decks.find((deck) => deck.id === lobby.players.find((player) => player.userId === user.id)?.deckId) ?? decks[0];
-            const names = new Set(lobby.players.flatMap((player) => [player.commander ?? localDeck?.commander ?? "", ...(player.cards?.length ? player.cards : localDeck?.cards ?? []).map((card) => card.name)]).filter(Boolean));
+            const cardsByPlayer = new Map(lobby.players.map((player) => [player.userId, player.cards?.length ? player.cards : player.bot ? developmentDeck(player.commander ?? "") : player.userId === user.id ? localDeck?.cards ?? [] : []]));
+            const commanderByPlayer = new Map(lobby.players.map((player) => [player.userId, player.commander ?? (player.userId === user.id ? localDeck?.commander : null) ?? "Unknown Commander"]));
+            const names = new Set(lobby.players.flatMap((player) => [commanderByPlayer.get(player.userId)!, ...cardsByPlayer.get(player.userId)!.map((card) => card.name)]).filter(Boolean));
             const records = new Map(await Promise.all([...names].map(async (name) => [name.toLowerCase(), await getCardByName(name)] as const)));
             const players: GameSetupPlayer[] = lobby.players.map((player) => ({
               id: player.userId,
@@ -77,10 +91,10 @@ export function PlatformApp({
               avatar: player.avatar,
               avatarImage: player.avatarImage,
               accentColor: player.accentColor,
-              commander: player.commander ?? localDeck?.commander ?? "Unknown Commander",
-              commanderManaCost: records.get((player.commander ?? localDeck?.commander ?? "").toLowerCase())?.manaCost,
-              manaColors: records.get((player.commander ?? localDeck?.commander ?? "").toLowerCase())?.colorIdentity?.filter((color) => "WUBRG".includes(color)) as GameSetupPlayer["manaColors"],
-              cards: (player.cards?.length ? player.cards : localDeck?.cards ?? []).map((card) => ({ ...card, manaCost: records.get(card.name.toLowerCase())?.manaCost ?? "" })),
+              commander: commanderByPlayer.get(player.userId)!,
+              commanderManaCost: records.get(commanderByPlayer.get(player.userId)!.toLowerCase())?.manaCost,
+              manaColors: records.get(commanderByPlayer.get(player.userId)!.toLowerCase())?.colorIdentity?.filter((color) => "WUBRG".includes(color)) as GameSetupPlayer["manaColors"],
+              cards: cardsByPlayer.get(player.userId)!.map((card) => ({ ...card, manaCost: records.get(card.name.toLowerCase())?.manaCost ?? "" })),
               local: player.userId === user.id
             }));
             onStartGame(players, lobby.startingLife, lobby.name, lobby.id, lobby.gameSeed ?? 1);
