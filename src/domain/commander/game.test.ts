@@ -148,7 +148,9 @@ describe("Commander game event reducer", () => {
     const card = cardsInZone(state, "p0", "library")[0];
     state = commanderGameReducer(state, { type: "MOVE_CARD", cardId: card.id, zone: "battlefield" });
     state = commanderGameReducer(state, { type: "CHANGE_CONTROLLER", cardId: card.id, playerId: "p1" });
-    expect(cardsInZone(state, "p1", "battlefield")).toContainEqual(expect.objectContaining({ id: card.id }));
+    expect(cardsInZone(state, "p1", "battlefield")).toContainEqual(expect.objectContaining({ id: card.id, annotation: "Carta di You" }));
+    state = commanderGameReducer(state, { type: "SET_ANNOTATION", cardId: card.id, annotation: "Copied ability" });
+    expect(state.cards[card.id].annotation).toBe("Carta di You · Copied ability");
     state = commanderGameReducer(state, { type: "TOGGLE_TRANSFORM", cardId: card.id });
     state = commanderGameReducer(state, { type: "SET_CARD_ARTWORK", cardId: card.id, artworkUrl: "front.jpg", backArtworkUrl: "back.jpg" });
     expect(state.cards[card.id]).toMatchObject({ transformed: true, artworkUrl: "front.jpg", backArtworkUrl: "back.jpg" });
@@ -156,6 +158,6 @@ describe("Commander game event reducer", () => {
     state = commanderGameReducer(state, { type: "NEXT_PHASE" });
     expect(state.phase).toBe("attackers");
     state = commanderGameReducer(state, { type: "MOVE_CARD", cardId: card.id, zone: "graveyard" });
-    expect(cardsInZone(state, "p0", "graveyard")).toContainEqual(expect.objectContaining({ id: card.id, controllerId: "p0", transformed: false }));
+    expect(cardsInZone(state, "p0", "graveyard")).toContainEqual(expect.objectContaining({ id: card.id, controllerId: "p0", transformed: false, annotation: "Copied ability" }));
   });
 });

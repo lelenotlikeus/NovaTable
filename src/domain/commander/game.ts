@@ -88,6 +88,12 @@ function playerName(state: CommanderGameState, id: string) {
   return state.players[id]?.name ?? "Player";
 }
 
+function controllerAnnotation(annotation: string, ownerName: string, controlledByOther: boolean) {
+  const marker = `Carta di ${ownerName}`;
+  const note = annotation === marker ? "" : annotation.startsWith(`${marker} · `) ? annotation.slice(marker.length + 3) : annotation;
+  return controlledByOther ? [marker, note].filter(Boolean).join(" · ") : note;
+}
+
 function draw(state: CommanderGameState, playerId: string, count: number) {
   const cards = { ...state.cards };
   const library = Object.values(cards)
@@ -189,6 +195,7 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
         manaCost,
         zone: action.zone,
         controllerId: action.zone === "battlefield" ? card.controllerId : card.ownerId,
+        annotation: controllerAnnotation(card.annotation, playerName(state, card.ownerId), action.zone === "battlefield" && card.controllerId !== card.ownerId),
         order,
         tapped: action.zone === "battlefield" ? card.tapped : false,
         attachedTo: action.zone === "battlefield" ? card.attachedTo : null,
@@ -214,6 +221,7 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
       moving.forEach((card, index) => {
         if (card.token && action.zone !== "battlefield") delete cards[card.id];
         else cards[card.id] = { ...card, zone: action.zone, order: firstOrder + index, controllerId: card.ownerId,
+          annotation: controllerAnnotation(card.annotation, playerName(state, card.ownerId), false),
           tapped: false, attachedTo: null, battlefieldX: null, battlefieldY: null, rotation: 0, zIndex: 0,
           revealed: action.zone !== "hand" && action.zone !== "library", transformed: false };
       });
@@ -269,7 +277,8 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
     }
     case "CHANGE_CONTROLLER": {
       const card = state.cards[action.cardId]; if (!card || card.zone !== "battlefield" || !state.players[action.playerId]) return state;
-      return log({ ...state, cards: { ...state.cards, [card.id]: { ...card, controllerId: action.playerId } } }, `${card.name} is now controlled by ${playerName(state, action.playerId)}`, card.ownerId);
+      return log({ ...state, cards: { ...state.cards, [card.id]: { ...card, controllerId: action.playerId,
+        annotation: controllerAnnotation(card.annotation, playerName(state, card.ownerId), action.playerId !== card.ownerId) } } }, `${card.name} is now controlled by ${playerName(state, action.playerId)}`, card.ownerId);
     }
     case "SET_CARD_ARTWORK": {
       const card = state.cards[action.cardId]; if (!card) return state;
@@ -294,7 +303,8 @@ export function commanderGameReducer(state: CommanderGameState, action: Commande
     }
     case "SET_ANNOTATION": {
       const card = state.cards[action.cardId]; if (!card) return state;
-      return log({ ...state, cards: { ...state.cards, [card.id]: { ...card, annotation: action.annotation.trim() } } }, `${card.name} annotation updated`, card.ownerId);
+      return log({ ...state, cards: { ...state.cards, [card.id]: { ...card,
+        annotation: controllerAnnotation(action.annotation.trim(), playerName(state, card.ownerId), card.controllerId !== card.ownerId) } } }, `${card.name} annotation updated`, card.ownerId);
     }
     case "CREATE_TOKEN": {
       const name = action.name?.trim() || "Soldier";
