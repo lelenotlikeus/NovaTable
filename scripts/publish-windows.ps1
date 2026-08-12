@@ -21,6 +21,7 @@ $updates = Join-Path $release "updates"
 New-Item -ItemType Directory -Force -Path $release, $downloads, $updates | Out-Null
 Copy-Item (Join-Path $projectRoot "site\*") $release -Recurse -Force
 Copy-Item (Join-Path $projectRoot "public\novatable-logo.svg") $release -Force
+Copy-Item (Join-Path $projectRoot "public\magic-card-back.png") $release -Force
 Copy-Item (Join-Path $projectRoot "docs\assets\commander-gameplay.png") $release -Force
 Copy-Item $bundle (Join-Path $downloads "NovaTable_${version}_x64-setup.exe") -Force
 Copy-Item $bundle (Join-Path $downloads "NovaTable-latest_x64-setup.exe") -Force

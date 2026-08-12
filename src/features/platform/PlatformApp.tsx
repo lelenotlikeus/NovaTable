@@ -162,12 +162,28 @@ function HomeView({ user, decks, revision, onCreate, onJoin, onBrowse, onNotify 
     try { const lobby = await onlineFindLobby(code); onJoin(await onlineJoinLobby(lobby.id, user, password)); }
     catch (error) { onNotify(error instanceof Error ? error.message : String(error)); }
   }
-  return <div className="page-content">
-    <section className="home-hero">
-      <div><span className="kicker">Good evening, {user.displayName}</span><h1>Bring the pod together.</h1><p>Create a private Commander table or find players already waiting.</p>
+  const featuredDecks = decks.slice(-3).reverse();
+  function tiltHero(event: React.PointerEvent<HTMLElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    event.currentTarget.style.setProperty("--hero-ry", `${((event.clientX - bounds.left) / bounds.width - .5) * 9}deg`);
+    event.currentTarget.style.setProperty("--hero-rx", `${((event.clientY - bounds.top) / bounds.height - .5) * -7}deg`);
+  }
+  function resetHero(event: React.PointerEvent<HTMLElement>) {
+    event.currentTarget.style.setProperty("--hero-ry", "0deg"); event.currentTarget.style.setProperty("--hero-rx", "0deg");
+  }
+  return <div className="page-content home-page">
+    <section className="home-hero" onPointerMove={tiltHero} onPointerLeave={resetHero}>
+      <div className="home-hero__copy"><span className="kicker">Good evening, {user.displayName}</span><h1>Bring the pod together.</h1><p>Create a private Commander table, invite your friends and play without setup friction.</p>
         <div className="hero-actions"><button className="primary-button" onClick={onCreate}><Plus size={17} />Create Lobby</button><button className="secondary-button" onClick={onBrowse}><DoorOpen size={17} />Join Lobby</button></div>
+        <div className="home-hero__signals"><span><i />Services online</span><span><Shield size={12} />Synchronized tabletop</span></div>
       </div>
-      <div className="hero-orbit"><i>40</i><span>COMMANDER<br />READY</span></div>
+      <div className="hero-stage" aria-hidden="true">
+        <div className="hero-stage__grid" /><i className="hero-ring hero-ring--outer" /><i className="hero-ring hero-ring--inner" />
+        {[0, 1, 2].map((index) => <div className={`hero-playing-card hero-playing-card--${index + 1}`} key={index}>{featuredDecks[index] ? <CommanderArtwork name={featuredDecks[index].commander} /> : <img src="/magic-card-back.png" alt="" />}</div>)}
+        <div className="hero-core"><img src="/novatable-logo.svg" alt="" /><strong>40</strong><span>COMMANDER READY</span></div>
+        <div className="hero-float hero-float--players"><Users size={13} /><span><b>4 / 4</b> pod connected</span></div>
+        <div className="hero-float hero-float--sync"><Sparkles size={13} /><span><b>LIVE</b> table sync</span></div>
+      </div>
     </section>
     <section className="quick-join card-panel"><div><span className="panel-icon"><LockKeyhole size={16} /></span><div><strong>Have a private lobby code?</strong><p>Jump directly into your friend's room.</p></div></div><form onSubmit={joinByCode}><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="LOBBY CODE" maxLength={6} /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="PASSWORD (OPTIONAL)" /><button>Join <ChevronRight size={14} /></button></form></section>
     <div className="home-grid">

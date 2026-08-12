@@ -3,21 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Download NovaTable for Windows, a modern multiplayer tabletop for Magic: The Gathering." />
-  <title>NovaTable — Commander online with your pod</title>
+  <meta name="description" content="Download NovaTable for Windows, a modern synchronized tabletop built for multiplayer Magic: The Gathering." />
+  <meta name="theme-color" content="#070b0f" />
+  <title>NovaTable — Commander night, reimagined</title>
   <link rel="icon" href="/novatable-logo.svg" />
   <link rel="stylesheet" href="/styles.css" />
+  <script defer src="/site.js"></script>
 </head>
 <body>
-  <header><a class="brand" href="/"><img src="/novatable-logo.svg" alt="" /><strong>NovaTable</strong><span>Beta</span></a><a href="https://github.com/lelenotlikeus/NovaTable">GitHub</a></header>
+  <div class="cursor-light" aria-hidden="true"></div><div class="scroll-meter" aria-hidden="true"></div>
+  <header class="site-nav"><a class="brand magnetic" href="#top"><img src="/novatable-logo.svg" alt="" /><strong>NovaTable</strong><span>Beta</span></a><nav><a href="#table">The table</a><a href="#updates">Updates</a></nav><a class="nav-download magnetic" href="/downloads/NovaTable-latest_x64-setup.exe">Download <b>↘</b></a></header>
   <main>
-    <section class="hero">
-      <div><span class="eyebrow">Open multiplayer tabletop · Windows</span><h1>Your Commander night,<br /><em>without the setup friction.</em></h1><p>Create a lobby, invite your pod and play Magic manually on a modern synchronized table.</p><div class="actions"><a class="download" href="/downloads/NovaTable-latest_x64-setup.exe">Download for Windows <small>Latest beta</small></a><a class="secondary" href="#updates">What’s new</a></div><small class="requirements">Windows 10/11 · 64-bit · Automatic updates included</small></div>
-      <div class="visual"><img src="/commander-gameplay.png" alt="NovaTable Commander game board" /><i>4-player Commander</i></div>
+    <section class="hero" id="top">
+      <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="hero-copy reveal"><span class="eyebrow"><i></i>Windows beta · Multiplayer tabletop</span><h1>Your pod.<br /><em>One table.</em></h1><p>Commander online with the freedom of a real table and the clarity of a modern multiplayer game.</p><div class="actions"><a class="download magnetic" href="/downloads/NovaTable-latest_x64-setup.exe">Download for Windows <small>Latest beta</small></a><a class="secondary" href="#table">Explore NovaTable</a></div><small class="requirements">Windows 10/11 · 64-bit · Signed automatic updates</small></div>
+      <div class="hero-scene" data-tilt aria-label="NovaTable Commander game board preview">
+        <i class="scene-ring ring-one"></i><i class="scene-ring ring-two"></i><div class="scene-grid"></div>
+        <div class="screen-frame"><div class="screen-bar"><span><i></i>COMMANDER NIGHT</span><b>LIVE TABLE</b></div><img src="/commander-gameplay.png" alt="NovaTable Commander game board with four players and real Magic cards" /><small>Four synchronized boards. One shared game.</small></div>
+        <div class="float-card float-card-one"><img src="/magic-card-back.png" alt="" /></div><div class="float-card float-card-two"><img src="/magic-card-back.png" alt="" /></div>
+        <div class="scene-chip chip-players"><b>04</b><span>PLAYERS<br />CONNECTED</span></div><div class="scene-chip chip-life"><b>40</b><span>STARTING<br />LIFE</span></div>
+      </div>
+      <div class="hero-foot"><span>GLOBAL ACCOUNTS</span><span>PRIVATE LOBBIES</span><span>MANUAL PLAY</span><a href="#table">Scroll to explore ↓</a></div>
     </section>
-    <section class="features"><article><span>01</span><h2>Real tabletop freedom</h2><p>Free card positioning, manual zones, targets, counters, tokens and complete combat phases.</p></article><article><span>02</span><h2>Built for your pod</h2><p>Global accounts, friends, private lobby codes, Commander brackets and synchronized games.</p></article><article><span>03</span><h2>Always current</h2><p>Install once. NovaTable verifies signed releases and updates itself when a newer version is available.</p></article></section>
-    <section class="updates" id="updates"><span class="eyebrow">Latest release</span><h2>NovaTable beta</h2><ul><li>Original mana symbols and totals beside every player name</li><li>Synchronized mana pool on every player board</li><li>Basic lands automatically add mana when tapped</li><li>Playing a spell spends available mana; every counter remains manually adjustable</li></ul><a href="/downloads/NovaTable-latest_x64-setup.exe">Get the Windows installer →</a></section>
+    <div class="ticker" aria-hidden="true"><div><span>FREE POSITIONING</span><i>✦</i><span>COMMANDER FIRST</span><i>✦</i><span>NO RULES PRISON</span><i>✦</i><span>FRIENDS & LOBBIES</span><i>✦</i><span>FREE POSITIONING</span><i>✦</i><span>COMMANDER FIRST</span><i>✦</i><span>NO RULES PRISON</span><i>✦</i><span>FRIENDS & LOBBIES</span><i>✦</i></div></div>
+    <section class="manifest" id="table">
+      <div class="manifest-copy reveal"><span class="eyebrow">Built around the game</span><h2>A table that gets<br /><em>out of your way.</em></h2><p>Move cards freely, point at targets, manage every public zone and keep the whole pod in sync. NovaTable automates convenience, not Magic.</p></div>
+      <div class="feature-grid">
+        <article class="feature feature-main reveal" data-card-tilt><span>01 / PLAY</span><h3>Physical freedom.<br />Digital precision.</h3><p>Drag, tap, attach, reveal, transform, annotate and target cards exactly where the table needs them.</p><div class="feature-orbit"><b>↗</b><i></i><i></i></div></article>
+        <article class="feature feature-social reveal" data-card-tilt><span>02 / POD</span><h3>Your people,<br />one click away.</h3><p>Permanent accounts, friends, lobby codes and four-player Commander rooms.</p><div class="pod-dots"><i></i><i></i><i></i><i></i></div></article>
+        <article class="feature feature-update reveal" data-card-tilt><span>03 / UPDATE</span><h3>Install once.<br />Stay current.</h3><p>Signed updates arrive automatically, so every player enters with the same build.</p><strong>AUTO<br />UPDATE</strong></article>
+      </div>
+    </section>
+    <section class="numbers reveal"><div><span>PLAYERS PER POD</span><strong>04</strong><small>Commander-ready</small></div><div><span>STARTING LIFE</span><strong>40</strong><small>Fully adjustable</small></div><div><span>RULES ENGINE</span><strong>00</strong><small>Your table, your calls</small></div></section>
+    <section class="updates" id="updates"><div class="updates-copy reveal"><span class="eyebrow">Latest release</span><h2>Ready for<br /><em>the next game.</em></h2><p>NovaTable is already playable with friends and evolves through real pod feedback.</p><a href="https://github.com/lelenotlikeus/NovaTable">Follow development on GitHub ↗</a></div><div class="release-card reveal"><header><span><i></i>PUBLIC BETA</span><b>WINDOWS x64</b></header><ul><li><span>01</span>Four equal Commander boards with readable card previews</li><li><span>02</span>Free card positioning, targets, counters and complete zones</li><li><span>03</span>Accounts, friends, private codes and synchronized lobbies</li><li><span>04</span>Signed automatic updates built into the client</li></ul><a class="download" href="/downloads/NovaTable-latest_x64-setup.exe">Get NovaTable <b>↓</b></a></div></section>
+    <section class="final-cta reveal"><img src="/novatable-logo.svg" alt="" /><span>THE POD IS WAITING</span><h2>Shuffle up.<br /><em>Meet online.</em></h2><a class="magnetic" href="/downloads/NovaTable-latest_x64-setup.exe">Download for Windows <b>↘</b></a></section>
   </main>
-  <footer><span>NovaTable is free and open source.</span><small>Unofficial Fan Content. Not approved or endorsed by Wizards of the Coast.</small></footer>
+  <footer><span>NovaTable is free and open source.</span><small>Unofficial Fan Content. Not approved or endorsed by Wizards of the Coast.</small><a href="#top">Back to top ↑</a></footer>
 </body>
 </html>
