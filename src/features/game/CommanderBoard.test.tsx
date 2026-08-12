@@ -70,7 +70,7 @@ describe("Commander board interactions", () => {
     solRing = screen.getByRole("button", { name: "Sol Ring" });
     const forest = screen.getAllByRole("button", { name: "Forest" }).find((card) => card.closest(".battlefield-drop"))!;
     expect(solRing).toHaveClass("is-attached");
-    expect(solRing.style.left).toBe(forest.style.left);
+    expect(Number.parseFloat(solRing.style.left)).toBeGreaterThan(Number.parseFloat(forest.style.left));
     expect(Number.parseFloat(solRing.style.top)).toBeGreaterThan(Number.parseFloat(forest.style.top));
     expect(Number(solRing.style.zIndex)).toBeLessThan(Number(forest.style.zIndex));
   });

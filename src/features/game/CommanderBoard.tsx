@@ -64,7 +64,7 @@ function battlefieldPlacement(card: CommanderCardState, battlefield: CommanderCa
   const target = card.attachedTo ? battlefield.find((candidate) => candidate.id === card.attachedTo) : null;
   if (!target) return [card.battlefieldX ?? fallback[0], card.battlefieldY ?? fallback[1], card.zIndex * 10 + 10];
   const index = battlefield.filter((candidate) => candidate.attachedTo === target.id).sort((a, b) => a.order - b.order).findIndex((candidate) => candidate.id === card.id);
-  return [target.battlefieldX ?? 50, clamp((target.battlefieldY ?? 50) + 9 + Math.max(0, index) * 4, 8, 92), target.zIndex * 10 + 9 - Math.max(0, index)];
+  return [clamp((target.battlefieldX ?? 50) + 5 + Math.max(0, index) * 3, 8, 92), clamp((target.battlefieldY ?? 50) + 7 + Math.max(0, index) * 3, 8, 92), target.zIndex * 10 + 9 - Math.max(0, index)];
 }
 
 export function CommanderBoard({
