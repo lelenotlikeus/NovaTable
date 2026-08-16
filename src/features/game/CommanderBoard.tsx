@@ -35,6 +35,7 @@ import { completeGame, gameActions, remoteApiEnabled, sendGameAction, submitHono
 
 interface CardDrag {
   cardId: string;
+  cardIds: string[];
   pointerId: number;
   startX: number;
   startY: number;
@@ -49,6 +50,7 @@ interface CardMenuState { cardId: string; x: number; y: number }
 interface ZoneMenuState { zone: "library" | "hand" | "graveyard" | "exile"; x: number; y: number }
 interface ViewedZoneState { playerId: string; zone: ZoneMenuState["zone"]; cardIds?: string[] }
 interface ArrowDraft { from: CommanderTarget; pointerId: number; startX: number; startY: number; clientX: number; clientY: number; started: boolean }
+interface SelectionDraft { pointerId: number; startX: number; startY: number; clientX: number; clientY: number }
 interface GamePromptField { key: string; label: string; value?: string; type?: "text" | "number"; min?: number; max?: number; multiline?: boolean; required?: boolean; options?: Array<{ value: string; label: string }> }
 interface GamePromptConfig { title: string; description?: string; fields: GamePromptField[]; onSubmit: (values: Record<string, string>) => void }
 
@@ -101,9 +103,12 @@ export function CommanderBoard({
   const [chatMessage, setChatMessage] = useState("");
   const [honorOpen, setHonorOpen] = useState(false);
   const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(() => new Set());
+  const [selectionDraft, setSelectionDraft] = useState<SelectionDraft | null>(null);
   const battlefieldRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<CardDrag | null>(null);
   const arrowRef = useRef<ArrowDraft | null>(null);
+  const selectionRef = useRef<SelectionDraft | null>(null);
   const suppressClickUntil = useRef(0);
   const suppressContextUntil = useRef(0);
   const gameSequence = useRef(0);
@@ -180,8 +185,13 @@ export function CommanderBoard({
   function startDrag(card: CommanderCardState, event: PointerEvent<HTMLElement>) {
     if (event.button !== 0 || card.controllerId !== localId) return;
     const bounds = event.currentTarget.getBoundingClientRect();
+    const cardIds = card.zone === "battlefield" && selectedCardIds.has(card.id)
+      ? localBattlefield.filter((candidate) => selectedCardIds.has(candidate.id) && candidate.controllerId === localId).map((candidate) => candidate.id)
+      : [card.id];
+    if (card.zone === "battlefield" && !selectedCardIds.has(card.id)) setSelectedCardIds(new Set([card.id]));
     const drag: CardDrag = {
       cardId: card.id,
+      cardIds,
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -220,7 +230,7 @@ export function CommanderBoard({
     suppressClickUntil.current = Date.now() + 120;
     const zone = dropZoneAt(event.clientX, event.clientY);
     const card = state.cards[current.cardId];
-    if (!zone || !card || (zone === "commander" && card.id !== state.players[card.ownerId].commanderCardId)) return;
+    if (!zone || !card || (zone === "commander" && (current.cardIds.length > 1 || card.id !== state.players[card.ownerId].commanderCardId))) return;
     if (zone === "battlefield" && battlefieldRef.current) {
       const bounds = battlefieldRef.current.getBoundingClientRect();
       const cardBounds = event.currentTarget.getBoundingClientRect();
@@ -231,9 +241,14 @@ export function CommanderBoard({
       const x = clamp(((centerX - bounds.left) / bounds.width) * 100, marginX, 100 - marginX);
       const y = clamp(((centerY - bounds.top) / bounds.height) * 100, marginY, 100 - marginY);
       const zIndex = Math.max(0, ...localBattlefield.map((permanent) => permanent.zIndex)) + 1;
-      action({ type: "MOVE_CARD", cardId: card.id, zone, x: roundCoordinate(x), y: roundCoordinate(y), zIndex, manaCost: card.manaCost });
+      const deltaX = x - (card.battlefieldX ?? x); const deltaY = y - (card.battlefieldY ?? y);
+      current.cardIds.forEach((cardId, index) => {
+        const moving = state.cards[cardId]; if (!moving) return;
+        action({ type: "MOVE_CARD", cardId, zone, x: roundCoordinate(clamp((moving.battlefieldX ?? x) + deltaX, marginX, 100 - marginX)), y: roundCoordinate(clamp((moving.battlefieldY ?? y) + deltaY, marginY, 100 - marginY)), zIndex: zIndex + index, manaCost: moving.manaCost });
+      });
     } else {
-      action({ type: "MOVE_CARD", cardId: card.id, zone, manaCost: card.manaCost });
+      current.cardIds.forEach((cardId) => { const moving = state.cards[cardId]; if (moving) action({ type: "MOVE_CARD", cardId, zone, manaCost: moving.manaCost }); });
+      setSelectedCardIds(new Set());
     }
   }
 
@@ -293,7 +308,13 @@ export function CommanderBoard({
 
   function startArrow(event: PointerEvent<HTMLElement>) {
     if (event.button !== 2) return;
-    const from = arrowTarget(event.target as HTMLElement);
+    const target = event.target as HTMLElement;
+    const from = arrowTarget(target);
+    if (!from && battlefieldRef.current?.contains(target)) {
+      const draft = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY };
+      selectionRef.current = draft; setSelectionDraft(draft); setSelectedCardIds(new Set());
+      event.preventDefault(); event.currentTarget.setPointerCapture?.(event.pointerId); return;
+    }
     if (!from) return;
     event.preventDefault();
     const draft = { from, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY, started: false };
@@ -303,6 +324,11 @@ export function CommanderBoard({
   }
 
   function moveArrow(event: PointerEvent<HTMLElement>) {
+    const selection = selectionRef.current;
+    if (selection?.pointerId === event.pointerId) {
+      const next = { ...selection, clientX: event.clientX, clientY: event.clientY };
+      selectionRef.current = next; setSelectionDraft(next); event.preventDefault(); return;
+    }
     const current = arrowRef.current;
     if (!current || current.pointerId !== event.pointerId) return;
     const next = { ...current, clientX: event.clientX, clientY: event.clientY, started: current.started || Math.hypot(event.clientX - current.startX, event.clientY - current.startY) > 5 };
@@ -312,6 +338,18 @@ export function CommanderBoard({
   }
 
   function finishArrow(event: PointerEvent<HTMLElement>) {
+    const selection = selectionRef.current;
+    if (selection?.pointerId === event.pointerId) {
+      selectionRef.current = null; setSelectionDraft(null); event.preventDefault(); suppressContextUntil.current = Date.now() + 180;
+      const left = Math.min(selection.startX, event.clientX); const right = Math.max(selection.startX, event.clientX);
+      const top = Math.min(selection.startY, event.clientY); const bottom = Math.max(selection.startY, event.clientY);
+      const selected = new Set<string>();
+      battlefieldRef.current?.querySelectorAll<HTMLElement>("[data-card-id]").forEach((element) => {
+        const bounds = element.getBoundingClientRect(); const card = state.cards[element.dataset.cardId ?? ""];
+        if (card?.controllerId === localId && bounds.right >= left && bounds.left <= right && bounds.bottom >= top && bounds.top <= bottom) selected.add(card.id);
+      });
+      setSelectedCardIds(selected); return;
+    }
     const current = arrowRef.current;
     if (!current || current.pointerId !== event.pointerId) return;
     arrowRef.current = null;
@@ -324,7 +362,7 @@ export function CommanderBoard({
     action({ type: "ADD_ARROW", arrow: { id: globalThis.crypto?.randomUUID?.() ?? `arrow-${Date.now()}-${Math.random()}`, from: current.from, to } });
   }
 
-  function cancelArrow() { arrowRef.current = null; setArrowDraft(null); }
+  function cancelArrow() { arrowRef.current = null; selectionRef.current = null; setArrowDraft(null); setSelectionDraft(null); }
 
   const dragInteractions = (card: CommanderCardState) => ({
     onPointerDown: (event: PointerEvent<HTMLElement>) => startDrag(card, event),
@@ -346,7 +384,7 @@ export function CommanderBoard({
     return viewedZone.cardIds ? viewedZone.cardIds.map((id) => state.cards[id]).filter((card): card is CommanderCardState => Boolean(card && card.zone === viewedZone.zone)) : ordered;
   })() : [];
 
-  return <main className={`commander-screen ${dragVisual?.started ? "is-dragging-card" : ""} ${arrowDraft?.started ? "is-drawing-arrow" : ""}`} style={{ "--nt-green": state.players[localId].accentColor ?? "#62e6bb" } as CSSProperties} onPointerDown={startArrow} onPointerMove={moveArrow} onPointerUp={finishArrow} onPointerCancel={cancelArrow} onContextMenu={(event) => event.preventDefault()}>
+  return <main className={`commander-screen ${dragVisual?.started ? "is-dragging-card" : ""} ${arrowDraft?.started ? "is-drawing-arrow" : ""} ${selectionDraft ? "is-selecting-cards" : ""}`} style={{ "--nt-green": state.players[localId].accentColor ?? "#62e6bb" } as CSSProperties} onPointerDown={startArrow} onPointerMove={moveArrow} onPointerUp={finishArrow} onPointerCancel={cancelArrow} onContextMenu={(event) => event.preventDefault()}>
     <header className="game-topbar">
       <div><img className="brand-logo" src="/novatable-logo.svg" alt="NovaTable" /><div><strong>{lobbyName}</strong><span>Commander · 4 players</span></div></div>
       <div className="turn-status"><span>Turn {state.turn}</span><strong>{state.players[state.activePlayerId].name}</strong><i>{state.phase.replace("-", " ")}</i></div>
@@ -359,7 +397,7 @@ export function CommanderBoard({
       </div>
 
       <div className={`shared-center ${stackCards.length ? "has-stack" : ""}`}>
-        <div className={`stack-tray ${dropZone === "stack" ? "is-drop-target" : ""}`} data-drop-zone="stack"><span>Stack {stackCards.length || ""}</span>{stackCards.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} compact dragging={dragVisual?.started && dragVisual.cardId === card.id} {...(card.ownerId === localId ? cardInteractions(card) : { onHover: (hovered: boolean) => setHoveredCardId(hovered ? card.id : null) })} />)}</div>
+        <div className={`stack-tray ${dropZone === "stack" ? "is-drop-target" : ""}`} data-drop-zone="stack"><span>Stack {stackCards.length || ""}</span>{stackCards.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} compact dragging={Boolean(dragVisual?.started && dragVisual.cardIds.includes(card.id))} {...(card.ownerId === localId ? cardInteractions(card) : { onHover: (hovered: boolean) => setHoveredCardId(hovered ? card.id : null) })} />)}</div>
         <div className="phase-track">{commanderPhases.map((phase) => <button className={state.phase === phase ? "is-current" : ""} disabled={state.activePlayerId !== localId} key={phase} onClick={() => action({ type: "SET_PHASE", phase })}>{phase.replaceAll("-", " ")}</button>)}</div>
       </div>
 
@@ -372,18 +410,19 @@ export function CommanderBoard({
             <ZoneButton icon={<Eye />} label="Exile" count={localExile.length} zone="exile" active={dropZone === "exile"} topCard={localExile.at(-1)} onHover={setHoveredCardId} {...(localExile.length ? dragInteractions(localExile.at(-1)!) : {})} onClick={() => { if (Date.now() >= suppressClickUntil.current) setViewedZone({ playerId: localId, zone: "exile" }); }} onContext={(event) => { event.preventDefault(); setCardMenu(null); setZoneMenu({ zone: "exile", x: event.clientX, y: event.clientY }); }} />
             <div className={`commander-zone ${dropZone === "commander" ? "is-drop-target" : ""}`} data-drop-zone="commander">
               <small>Commander <span className="tax-control"><button onClick={() => action({ type: "CHANGE_COMMANDER_TAX", playerId: localId, delta: -1 })}>−</button><b>Tax {state.players[localId].commanderTax}</b><button onClick={() => action({ type: "CHANGE_COMMANDER_TAX", playerId: localId, delta: 1 })}>+</button></span></small>
-              {localCommander.zone === "commander" && <CommanderCard card={localCommander} selected={pinnedCardId === localCommander.id} dragging={dragVisual?.started && dragVisual.cardId === localCommander.id} {...cardInteractions(localCommander)} onDouble={() => playAtCenter(localCommander)} />}
+              {localCommander.zone === "commander" && <CommanderCard card={localCommander} selected={pinnedCardId === localCommander.id} dragging={Boolean(dragVisual?.started && dragVisual.cardIds.includes(localCommander.id))} {...cardInteractions(localCommander)} onDouble={() => playAtCenter(localCommander)} />}
               {localCommander.zone !== "commander" && <span className="empty-command-zone">Command zone</span>}
             </div>
           </div>
           <div ref={battlefieldRef} className={`battlefield-drop ${dropZone === "battlefield" ? "is-drop-target" : ""}`} data-drop-zone="battlefield">
             {!localBattlefield.length && <span>Drag a card here — the battlefield is freely positionable</span>}
-            {localBattlefield.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} dragging={dragVisual?.started && dragVisual.cardId === card.id} freePosition={battlefieldPlacement(card, localBattlefield)} {...cardInteractions(card)} onDouble={() => action({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })} />)}
+            {localBattlefield.map((card) => <CommanderCard key={card.id} card={card} selected={selectedCardIds.has(card.id) || pinnedCardId === card.id} dragging={Boolean(dragVisual?.started && dragVisual.cardIds.includes(card.id))} freePosition={battlefieldPlacement(card, localBattlefield)} {...cardInteractions(card)} onDouble={() => action({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })} />)}
+            {selectedCardIds.size > 1 && <small className="selection-count">{selectedCardIds.size} cards selected</small>}
           </div>
         </div>
         <div className={`local-hand ${dropZone === "hand" ? "is-drop-target" : ""}`} data-drop-zone="hand" onContextMenu={(event) => { if ((event.target as HTMLElement).closest("[data-card-id]")) return; event.preventDefault(); setCardMenu(null); setZoneMenu({ zone: "hand", x: event.clientX, y: event.clientY }); }}>
           <span>Your hand <b>{localHand.length}</b></span>
-          <div>{localHand.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} dragging={dragVisual?.started && dragVisual.cardId === card.id} hand {...cardInteractions(card)} onDouble={() => playAtCenter(card)} />)}</div>
+          <div>{localHand.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} dragging={Boolean(dragVisual?.started && dragVisual.cardIds.includes(card.id))} hand {...cardInteractions(card)} onDouble={() => playAtCenter(card)} />)}</div>
         </div>
       </section>
     </section>
@@ -397,16 +436,17 @@ export function CommanderBoard({
       <section className="game-log"><header><CircleDot size={14} /><strong>Game log & chat</strong></header><div>{[...state.log].reverse().slice(0, 30).map((entry) => <p key={entry.id}>{entry.message}</p>)}</div><form onSubmit={(event) => { event.preventDefault(); action({ type: "CHAT_MESSAGE", playerId: localId, text: chatMessage }); setChatMessage(""); }}><input aria-label="Game chat message" value={chatMessage} onChange={(event) => setChatMessage(event.target.value)} placeholder="Message the table" maxLength={500} /><button aria-label="Send game message"><Send size={13} /></button></form></section>
     </aside>
 
-    {cardMenu && state.cards[cardMenu.cardId] && <CardContextMenu card={state.cards[cardMenu.cardId]} battlefield={battlefieldCards} players={state.players} isCommander={state.players[state.cards[cardMenu.cardId].ownerId].commanderCardId === cardMenu.cardId} dispatch={action} position={cardMenu} onPrompt={setGamePrompt} onChooseArtwork={() => { setArtworkCardId(cardMenu.cardId); setCardMenu(null); }} onClose={() => setCardMenu(null)} />}
+    {cardMenu && state.cards[cardMenu.cardId] && <CardContextMenu card={state.cards[cardMenu.cardId]} selectedCards={selectedCardIds.has(cardMenu.cardId) ? localBattlefield.filter((card) => selectedCardIds.has(card.id)) : []} battlefield={battlefieldCards} players={state.players} isCommander={state.players[state.cards[cardMenu.cardId].ownerId].commanderCardId === cardMenu.cardId} dispatch={action} position={cardMenu} onPrompt={setGamePrompt} onChooseArtwork={() => { setArtworkCardId(cardMenu.cardId); setCardMenu(null); }} onClose={() => setCardMenu(null)} />}
     {zoneMenu && <ZoneContextMenu zone={zoneMenu.zone} count={cardsInZone(state, localId, zoneMenu.zone).length} topCard={zoneMenu.zone === "library" ? localLibrary[0] : cardsInZone(state, localId, zoneMenu.zone).at(-1)} playerId={localId} dispatch={action} position={zoneMenu} onPrompt={setGamePrompt} onView={() => { setViewedZone({ playerId: localId, zone: zoneMenu.zone }); setZoneMenu(null); }} onClose={() => setZoneMenu(null)} />}
     {viewedZone && <aside className="zone-browser" role="dialog" aria-label={`${zoneLabel(viewedZone.zone)} cards`}>
       <header><div><span className="kicker">{viewedZone.playerId === localId ? "Your cards" : state.players[viewedZone.playerId].name}</span><strong>{viewedZone.cardIds ? `Top ${viewedZone.cardIds.length} · ` : ""}{zoneLabel(viewedZone.zone)}</strong><small>{viewedCards.length} card{viewedCards.length === 1 ? "" : "s"} · {viewedZone.playerId === localId ? "drag or right-click any card" : "public zone"}</small></div><button onClick={() => setViewedZone(null)} aria-label="Close zone viewer"><X size={17} /></button></header>
-      <div>{viewedCards.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} dragging={dragVisual?.started && dragVisual.cardId === card.id} {...(viewedZone.playerId === localId ? cardInteractions(card) : { onHover: (hovered: boolean) => setHoveredCardId(hovered ? card.id : null) })} />)}{!viewedCards.length && <p>This zone is empty.</p>}</div>
+      <div>{viewedCards.map((card) => <CommanderCard key={card.id} card={card} selected={pinnedCardId === card.id} dragging={Boolean(dragVisual?.started && dragVisual.cardIds.includes(card.id))} {...(viewedZone.playerId === localId ? cardInteractions(card) : { onHover: (hovered: boolean) => setHoveredCardId(hovered ? card.id : null) })} />)}{!viewedCards.length && <p>This zone is empty.</p>}</div>
     </aside>}
     {dragVisual?.started && state.cards[dragVisual.cardId] && <div className="drag-card-preview" style={{ left: dragVisual.clientX - dragVisual.centerOffsetX, top: dragVisual.clientY - dragVisual.centerOffsetY }}><CommanderCard card={state.cards[dragVisual.cardId].zone === "library" && !state.cards[dragVisual.cardId].revealed ? { ...state.cards[dragVisual.cardId], faceDown: true } : state.cards[dragVisual.cardId]} selected={false} previewOnly /></div>}
     {artworkCardId && state.cards[artworkCardId] && <CardArtworkPicker cardName={state.cards[artworkCardId].name} onSelect={(printing) => action({ type: "SET_CARD_ARTWORK", cardId: artworkCardId, artworkUrl: printing?.imageUrl ?? null, backArtworkUrl: printing?.otherFaceImageUrl })} onClose={() => setArtworkCardId(null)} />}
     {gamePrompt && <GamePromptModal config={gamePrompt} onClose={() => setGamePrompt(null)} />}
     {honorOpen && <div className="game-prompt-backdrop" role="presentation"><section className="game-prompt honor-prompt" role="dialog" aria-modal="true" aria-label="End game"><header><div><span className="kicker">End of game</span><strong>Record the result</strong><p>Every real player earns 100 XP. The winner earns 250 bonus XP.</p></div></header>{state.playerOrder[0] === localId && <><small className="honor-label">Winner (optional)</small><section>{state.playerOrder.filter((playerId) => !playerId.startsWith("bot-")).map((playerId) => <button className={winnerId === playerId ? "is-selected" : ""} key={`winner-${playerId}`} onClick={() => setWinnerId(playerId)}><span className="avatar">{state.players[playerId].avatar}</span><strong>{state.players[playerId].name}</strong><small>{winnerId === playerId ? "Winner selected" : "Select winner"}</small></button>)}</section></>}<small className="honor-label">Award Honor</small><section>{state.playerOrder.filter((playerId) => playerId !== localId && !playerId.startsWith("bot-")).map((playerId) => <button key={playerId} onClick={() => void finishGame(playerId)}><span className="avatar">{state.players[playerId].avatar}</span><strong>{state.players[playerId].name}</strong><small>Give +1 Honor & leave</small></button>)}</section><footer><button className="secondary-button" onClick={() => void finishGame()}>Save result & leave</button></footer></section></div>}
+    {selectionDraft && <div className="selection-marquee" style={{ left: Math.min(selectionDraft.startX, selectionDraft.clientX), top: Math.min(selectionDraft.startY, selectionDraft.clientY), width: Math.abs(selectionDraft.clientX - selectionDraft.startX), height: Math.abs(selectionDraft.clientY - selectionDraft.startY) }} />}
     <ArrowLayer arrows={state.arrows} attachments={Object.values(state.cards).filter((card) => card.attachedTo).map((card) => ({ id: `attachment-${card.id}`, from: { kind: "card", id: card.id }, to: { kind: "card", id: card.attachedTo! } }))} draft={arrowDraft} onRemove={(arrowId) => action({ type: "REMOVE_ARROW", arrowId })} />
   </main>;
 }
@@ -559,7 +599,7 @@ function CardPreview({ card, canPeek, pinned, onUnpin }: { card: CommanderCardSt
   </section>;
 }
 
-function CardContextMenu({ card, battlefield, players, isCommander, dispatch, position, onPrompt, onChooseArtwork, onClose }: { card: CommanderCardState; battlefield: CommanderCardState[]; players: CommanderGameState["players"]; isCommander: boolean; dispatch: (action: CommanderGameAction) => void; position: CardMenuState; onPrompt: (prompt: GamePromptConfig) => void; onChooseArtwork: () => void; onClose: () => void }) {
+function CardContextMenu({ card, selectedCards, battlefield, players, isCommander, dispatch, position, onPrompt, onChooseArtwork, onClose }: { card: CommanderCardState; selectedCards: CommanderCardState[]; battlefield: CommanderCardState[]; players: CommanderGameState["players"]; isCommander: boolean; dispatch: (action: CommanderGameAction) => void; position: CardMenuState; onPrompt: (prompt: GamePromptConfig) => void; onChooseArtwork: () => void; onClose: () => void }) {
   const record = useCardRecord(card.name);
   const basePower = card.power ?? numericStat(record?.power);
   const baseToughness = card.toughness ?? numericStat(record?.toughness);
@@ -568,6 +608,9 @@ function CardContextMenu({ card, battlefield, players, isCommander, dispatch, po
   function run(action: CommanderGameAction) {
     dispatch(action.type === "MOVE_CARD" && (action.zone === "battlefield" || action.zone === "stack") ? { ...action, manaCost: card.manaCost } : action);
     onClose();
+  }
+  function runSelected(makeAction: (selected: CommanderCardState) => CommanderGameAction) {
+    selectedCards.forEach((selected) => dispatch(makeAction(selected))); onClose();
   }
   function runShortcut(shortcut: ReturnType<typeof cardTextShortcuts>[number]) {
     if (shortcut.kind === "token") run({ type: "CREATE_TOKEN", playerId: card.ownerId, name: shortcut.name, count: shortcut.count, power: shortcut.power, toughness: shortcut.toughness });
@@ -601,6 +644,7 @@ function CardContextMenu({ card, battlefield, players, isCommander, dispatch, po
   }
   return <aside className="card-context-menu" style={style} role="menu">
     <header><span>{card.name}</span><small>{card.zone}{card.annotation ? ` · ${card.annotation}` : ""}</small></header>
+    {selectedCards.length > 1 && <section className="multi-card-actions"><span>{selectedCards.length} cards selected</span><button onClick={() => runSelected((selected) => ({ type: "TAP_CARD", cardId: selected.id }))}>Tap selected</button><button onClick={() => runSelected((selected) => ({ type: "UNTAP_CARD", cardId: selected.id }))}>Untap selected</button><button onClick={() => runSelected((selected) => ({ type: "MOVE_CARD", cardId: selected.id, zone: "hand" }))}>Selected to hand</button><button onClick={() => runSelected((selected) => ({ type: "MOVE_CARD", cardId: selected.id, zone: "graveyard" }))}>Selected to graveyard</button><button onClick={() => runSelected((selected) => ({ type: "MOVE_CARD", cardId: selected.id, zone: "exile" }))}>Exile selected</button><button onClick={() => runSelected((selected) => ({ type: "ADD_COUNTER", cardId: selected.id, delta: 1 }))}>+1/+1 on selected</button></section>}
     {shortcuts.length > 0 && <section className="card-text-actions"><span>From card text</span>{shortcuts.map((shortcut, index) => <button key={`${shortcut.kind}-${shortcut.label}-${index}`} onClick={() => runShortcut(shortcut)}>{shortcut.label}<CopyPlus size={12} /></button>)}</section>}
     {card.zone === "battlefield" && <button onClick={() => run({ type: card.tapped ? "UNTAP_CARD" : "TAP_CARD", cardId: card.id })}>{card.tapped ? "Untap" : "Tap"}<kbd>2× click</kbd></button>}
     {card.zone !== "battlefield" && <button onClick={() => run({ type: "MOVE_CARD", cardId: card.id, zone: "battlefield", x: 50, y: 50 })}>Move to battlefield</button>}
@@ -612,7 +656,7 @@ function CardContextMenu({ card, battlefield, players, isCommander, dispatch, po
     <button onClick={() => run({ type: "MOVE_CARD", cardId: card.id, zone: "library", placement: "bottom" })}>Bottom of library</button>
     {isCommander && card.zone !== "commander" && <button onClick={() => run({ type: "MOVE_CARD", cardId: card.id, zone: "commander" })}>Return to command zone</button>}
     <button onClick={() => run({ type: "TOGGLE_FACE_DOWN", cardId: card.id })}>{card.faceDown ? "Turn face up" : "Turn face down"}</button>
-    {record?.otherFaceImageUrl && <button onClick={() => run({ type: "TOGGLE_TRANSFORM", cardId: card.id })}>{card.transformed ? `Show front · ${card.name}` : `Transform · ${record.otherFaceName ?? "back face"}`}</button>}
+    {(card.backArtworkUrl || record?.otherFaceImageUrl) && <button onClick={() => run({ type: "TOGGLE_TRANSFORM", cardId: card.id })}>{card.transformed ? `Show front face · ${card.name}` : `Show back face · ${record?.otherFaceName ?? "other face"}`}</button>}
     <button onClick={() => run({ type: "CLONE_CARD", cardId: card.id })}>Clone / create copy</button>
     {card.zone === "battlefield" && <button onClick={card.attachedTo ? () => run({ type: "ATTACH_CARD", cardId: card.id, targetCardId: null }) : attach}>{card.attachedTo ? "Unattach" : "Attach to…"}</button>}
     {card.zone === "battlefield" && <button onClick={giveControl}>Give control to…</button>}

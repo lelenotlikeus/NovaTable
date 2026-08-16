@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { GameSetupPlayer } from "../../domain/commander/types";
+import { setPreferredCardPrinting } from "../../infrastructure/cardDatabase";
 import { CommanderBoard } from "./CommanderBoard";
 
 const players: GameSetupPlayer[] = ["You", "Mira", "Orin", "Nia"].map((name, index) => ({
@@ -160,6 +161,52 @@ describe("Commander board interactions", () => {
     fireEvent.click(within(menu).getByRole("button", { name: "Graveyard / Sacrifice" }));
     expect(document.querySelector('[data-drop-zone="graveyard"] strong')).toHaveTextContent("1");
     expect(document.querySelector(".battlefield-drop [data-card-id]")).toBeNull();
+  });
+
+  it("selects multiple permanents with right-drag and moves or acts on them together", async () => {
+    renderGame();
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Sol Ring" }));
+    fireEvent.doubleClick(screen.getAllByRole("button", { name: "Forest" })[0]);
+    const battlefield = document.querySelector<HTMLElement>(".battlefield-drop")!;
+    const screenRoot = document.querySelector<HTMLElement>(".commander-screen")!;
+    battlefield.getBoundingClientRect = vi.fn(() => battlefieldBounds); screenRoot.setPointerCapture = vi.fn();
+    let solRing = battlefield.querySelector<HTMLElement>('[aria-label="Sol Ring"]')!;
+    let forest = battlefield.querySelector<HTMLElement>('[aria-label="Forest"]')!;
+    solRing.getBoundingClientRect = vi.fn(() => rect(460, 250, 120, 168));
+    forest.getBoundingClientRect = vi.fn(() => rect(500, 250, 120, 168));
+
+    fireEvent.pointerDown(battlefield, { button: 2, pointerId: 31, clientX: 430, clientY: 220 });
+    fireEvent.pointerMove(battlefield, { button: 2, pointerId: 31, clientX: 650, clientY: 460 });
+    fireEvent.pointerUp(battlefield, { button: 2, pointerId: 31, clientX: 650, clientY: 460 });
+    expect(solRing).toHaveClass("is-selected"); expect(forest).toHaveClass("is-selected");
+
+    solRing.setPointerCapture = vi.fn(); document.elementFromPoint = vi.fn(() => battlefield);
+    fireEvent.pointerDown(solRing, { button: 0, pointerId: 32, clientX: 520, clientY: 334 });
+    fireEvent.pointerMove(solRing, { pointerId: 32, clientX: 620, clientY: 334 });
+    fireEvent.pointerUp(solRing, { pointerId: 32, clientX: 620, clientY: 334 });
+    solRing = battlefield.querySelector<HTMLElement>('[aria-label="Sol Ring"]')!;
+    forest = battlefield.querySelector<HTMLElement>('[aria-label="Forest"]')!;
+    expect(solRing).toHaveStyle({ left: "52%" }); expect(forest).toHaveStyle({ left: "56%" });
+
+    await new Promise((resolve) => setTimeout(resolve, 190));
+    fireEvent.contextMenu(solRing, { clientX: 500, clientY: 300 });
+    const menu = screen.getByRole("menu"); expect(menu).toHaveTextContent("2 cards selected");
+    fireEvent.click(within(menu).getByRole("button", { name: "Tap selected" }));
+    expect(battlefield.querySelector('[aria-label="Sol Ring, tapped"]')).toBeInTheDocument();
+    expect(battlefield.querySelector('[aria-label="Forest, tapped"]')).toBeInTheDocument();
+  });
+
+  it("shows and flips the official back face of a double-faced card", async () => {
+    setPreferredCardPrinting("Sink into Stupor", { name: "Sink into Stupor", nameLower: "sink into stupor", manaCost: "{1}{U}{U}", typeLine: "Instant", oracleText: "", power: null, toughness: null, imageUrl: "front.jpg", otherFaceName: "Soporific Springs", otherFaceImageUrl: "back.jpg", printingId: "mh3-241", setCode: "MH3", setName: "Modern Horizons 3", collectorNumber: "241", releasedAt: "2024-06-14", artist: "Tony Foti" });
+    const doubleFacedPlayers = players.map((player, index) => index ? player : { ...player, cards: [{ name: "Sink into Stupor", quantity: 1 }, { name: "Forest", quantity: 98 }] });
+    render(<CommanderBoard players={doubleFacedPlayers} startingLife={40} lobbyName="Commander Night" onLeave={() => undefined} />);
+    drawCards(1);
+    const card = await screen.findByRole("button", { name: "Sink into Stupor" });
+    expect(await screen.findByAltText("Sink into Stupor")).toHaveAttribute("src", "front.jpg");
+    fireEvent.contextMenu(card, { clientX: 500, clientY: 300 });
+    fireEvent.click(await within(screen.getByRole("menu")).findByRole("button", { name: "Show back face · Soporific Springs" }));
+    (await screen.findAllByAltText("Soporific Springs")).forEach((image) => expect(image).toHaveAttribute("src", "back.jpg"));
+    setPreferredCardPrinting("Sink into Stupor", null);
   });
 
   it("drags the commander to the battlefield and back to the command zone", () => {

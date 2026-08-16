@@ -2862,6 +2862,9 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .commander-card-shell.is-selected { filter: drop-shadow(0 0 7px rgba(98,230,187,.75)); }
 .commander-card-shell.is-selected .commander-card { box-shadow: 0 0 0 2px var(--nt-green), 0 10px 24px rgba(0,0,0,.45); }
 .commander-card-shell.is-dragging { opacity: .18; }
+.selection-marquee { position: fixed; z-index: 1200; border: 1px solid var(--nt-green); border-radius: 5px; background: rgba(98,230,187,.12); box-shadow: inset 0 0 18px rgba(98,230,187,.08); pointer-events: none; }
+.selection-count { position: absolute; z-index: 1000; top: 8px; right: 8px; padding: 5px 8px; border: 1px solid rgba(98,230,187,.3); border-radius: 99px; color: var(--nt-green); background: rgba(7,13,16,.86); font-size: 9px; font-weight: 800; pointer-events: none; }
+.is-selecting-cards, .is-selecting-cards * { cursor: crosshair !important; user-select: none; }
 .commander-card-shell.is-free { position: absolute; transform: translate(-50%, -50%); }
 .commander-card-shell.is-free:hover, .commander-card-shell.is-free:focus-visible { transform: translate(-50%, -50%) scale(1.03); }
 .commander-card-shell.is-compact { width: var(--card-size-opponent); height: calc(var(--card-size-opponent) * 1.4); }
@@ -2949,6 +2952,9 @@ input:focus, select:focus, textarea:focus { border-color: rgba(98, 230, 187, 0.4
 .context-counter { display: flex; min-height: 31px; align-items: center; gap: 5px; margin-top: 3px; padding: 4px 6px; border-top: 1px solid var(--nt-line); color: var(--nt-muted); font-size: 9px; }
 .context-counter span { margin-right: auto; }.context-counter button { display: grid; min-width: 24px; height: 23px; place-items: center; padding: 0 5px; border: 1px solid var(--nt-line); border-radius: 5px; color: #bcc6cb; background: rgba(255,255,255,.035); font-size: 10px; }
 .named-counter-control { display: flex; min-height: 31px; align-items: center; gap: 5px; padding: 4px 6px; border-top: 1px solid var(--nt-line); color: #d8c77e; font-size: 9px; }.named-counter-control > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.named-counter-control button { min-width: 24px; height: 23px; padding: 0 5px; border: 1px solid var(--nt-line); border-radius: 5px; color: #bcc6cb; background: rgba(255,255,255,.035); }.named-counter-control button.remove { color: #ef8e80; }
+.multi-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 7px; border-bottom: 1px solid var(--nt-line); background: rgba(98,230,187,.045); }
+.multi-card-actions > span { grid-column: 1 / -1; padding: 2px 3px 5px; color: var(--nt-green); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.multi-card-actions > button { min-height: 28px; border: 1px solid rgba(98,230,187,.15); border-radius: 6px; color: var(--nt-text); background: rgba(255,255,255,.025); font-size: 8px; }
 
 .game-prompt-backdrop { position: fixed; z-index: 2100; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(2,5,8,.78); backdrop-filter: blur(10px); }
 .game-prompt { display: grid; width: min(460px, calc(100vw - 36px)); overflow: hidden; border: 1px solid rgba(98,230,187,.28); border-radius: 16px; background: #0d141b; box-shadow: 0 30px 100px rgba(0,0,0,.75); }
